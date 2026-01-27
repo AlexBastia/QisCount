@@ -1,4 +1,6 @@
-module Syntax where
+module Program.Syntax where
+
+import qualified Logic.Syntax as L
 
 -- Boolean and Integer Expressions
 type Vname = String
@@ -9,11 +11,11 @@ data Expr
     | Ide Vname
     | BinOp Op2 Expr Expr 
     | MonOp Op1 Expr
-    | QC Expr Expr
+    | QC [Gate] Expr Expr
     deriving (Show, Eq)
 
 data Op2
-    = Add | Sub | Mult | Div | And | Or | Eq | Lt | Gt | Ge | Le
+    = Add | Sub | Mult | Div | And | Or | Eq | Ne | Lt | Gt | Ge | Le
     deriving (Show, Eq)
 
 data Op1
@@ -28,13 +30,30 @@ data Command
     = Assign Vname Expr
     | Seq [Command]
     | If Expr Command (Maybe Command)
-    | While Expr Command
-    | UnitOp Vname Gate [Expr]
+    | While Expr L.BExpr Command
+    | UnitOp Vname Gate
     | Measure Vname Expr Expr
-    | Comp Vname Expr
+    | Compose Vname Expr
     | AddQ Vname Expr
     | AddB Vname Expr
     deriving (Show, Eq)
+
 data Gate
-    = H | CX | X | RX
+    = MonGate Gate1 Expr
+    | BinGate Gate2 Expr Expr
     deriving (Show, Eq)
+
+data Gate1
+    = H | X
+    deriving (Show, Eq)
+
+data Gate2
+    = CX | RX
+    deriving (Show, Eq)
+
+data HoareTriple = HoareTriple
+    { p :: L.BExpr
+    , c :: Command
+    , q :: L.BExpr
+    }
+    deriving(Show)

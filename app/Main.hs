@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Parser
+import Program.Parser
 
 import System.Environment
 import Text.Megaparsec.Error (errorBundlePretty)
@@ -17,6 +17,6 @@ mainAct [] = do
 mainAct args = do
   let filepath = unwords args
   input <- readFile filepath
-  case parseProgram filepath ("{"++input++"}") of
+  case parseProgram filepath input of
         Left bundle -> putStrLn (errorBundlePretty bundle)
         Right out -> print out
