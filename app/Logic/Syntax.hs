@@ -40,13 +40,17 @@ data QExpr
     = QC AExpr AExpr
     | QIde String
     | Compose QExpr QExpr
-    | QF QFname QExpr [AExpr]
+    | QF1 QF1name QExpr AExpr
+    | QF2 QF2name QExpr AExpr AExpr
+    deriving(Show, Eq)
+
+data QF1name
+    = H | X | ADQ | ADB
+    deriving(Show, Eq)
+
+data QF2name
+    = CX | RX | MES
     deriving(Show, Eq)
 
 data QFname
-    = APP Gname | MES | ADQ | ADB
-    deriving(Show, Eq)
-
-data Gname
-    = H | X | CX | RX
-    deriving(Show, Eq)
+    = M QF1name | B QF2name
