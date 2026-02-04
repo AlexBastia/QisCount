@@ -25,10 +25,10 @@ data SQC = SQC
   } deriving (Show)
 
 -- Store
-data SymVar 
-  = VBool SBool 
-  | VInt  SInteger 
-  | VQC   SQC 
+data SymVar
+  = VBool SBool
+  | VInt  SInteger
+  | VQC   SQC
   deriving (Show)
 
 type Env = M.Map String SymVar
@@ -99,7 +99,7 @@ getSymBool :: String -> EvalM SBool
 getSymBool ide = do
     env <- get
     case M.lookup ide env of
-        Just (VBool s) -> return s 
+        Just (VBool s) -> return s
         Just _ -> error $ "Type Mismatch: Variable " ++ ide ++ " is not a Boolean."
         Nothing -> do
             s <- lift $ sBool ide
@@ -177,7 +177,7 @@ evalAExpr (QOp op qc _) = do
 
 makeImp :: BExpr -> BExpr -> Symbolic SBool
 makeImp p q = do
-  (res, _finalEnv) <- runStateT (evalImp) M.empty
+  (res, _finalEnv) <- runStateT evalImp M.empty
   return res
 
   where

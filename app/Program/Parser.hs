@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Program.Parser (parseProgram) where
 
 import Program.Syntax
@@ -111,9 +112,9 @@ pStmt = do
 pAssign :: Vname -> Parser Command
 pAssign l = do
     (e,t) <- choice
-        [ (\e -> (e, TyQC)) <$> try pQExpr -- TODO: Non e' bellissimo, ci sono altri modi senza il try?
-        , (\e -> (e, TyBool)) <$> try pBExpr
-        , (\e -> (e, TyInt)) <$> pAExpr
+        [ (, TyQC) <$> try pQExpr -- TODO: Non e' bellissimo, ci sono altri modi senza il try?
+        , (, TyBool) <$> try pBExpr
+        , (, TyInt) <$> pAExpr
         ]
     S.modify (M.insert l t)
     return $ Assign l e t
