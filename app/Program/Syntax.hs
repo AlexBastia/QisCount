@@ -4,23 +4,26 @@ import qualified Logic.Syntax as L
 
 -- Boolean and Integer Expressions
 type Vname = String
+data Type = 
+  TyBool | TyInt | TyQC
+  deriving (Show, Eq)
 
 data Expr
     = BoolLit Bool
     | NumLit Integer
-    | Ide Vname
+    | Ide Vname Type
     | BinOp Op2 Expr Expr 
     | MonOp Op1 Expr
     | QC [Gate] Expr Expr
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Op2
     = Add | Sub | Mult | Div | And | Or | Eq | Ne | Lt | Gt | Ge | Le
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Op1
     = Not | Neg | Pos
-    deriving (Show, Eq)
+    deriving (Show)
 
 rwords :: [String]
 rwords = ["if", "then", "else", "while", "True", "False", "QuantumCircuit"]
@@ -36,20 +39,20 @@ data Command
     | Compose Vname Expr
     | AddQ Vname Expr
     | AddB Vname Expr
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Gate
     = MonGate Gate1 Expr
     | BinGate Gate2 Expr Expr
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Gate1
     = H | X
-    deriving (Show, Eq)
+    deriving (Show)
 
 data Gate2
     = CX | RX
-    deriving (Show, Eq)
+    deriving (Show)
 
 data HoareTriple = HoareTriple
     { p :: L.BExpr

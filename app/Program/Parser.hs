@@ -7,42 +7,85 @@ import qualified Logic.Parser as L
 import Control.Monad.Combinators.Expr
 import Data.Void (Void)
 import Text.Megaparsec
+import qualified Data.Map as M
+import qualified Control.Monad.State as S
 
--- Expression Parser
+-- Boolean Expression Parser
+pBExpr :: Parser Expr
+pBExpr = makeExprParser pBTerm bOpTable
 
-pExpr :: Parser Expr
-pExpr = makeExprParser pTerm operatorTable
-
-pTerm :: Parser Expr
-pTerm = choice
-    [ NumLit <$> integer
-    , pQcirc
-    , Ide <$> identifier
+pBTerm :: Parser Expr
+pBTerm = choice
+    [ try pComparison
     , BoolLit <$> (True <$ symbol "True" <|> False <$ symbol "False")
-    , parens pExpr
+    , pIde TyBool
+    , parens pBExpr
     ]
 
-pQcirc :: Parser Expr
-pQcirc = symbol "QuantumCircuit" *> parens (QC [] <$> pExpr <*> (symbol "," *> pExpr))
+pComparison :: Parser Expr
+-- Possibile bug: mi sa che se le AExpr sono fra parentesi non contano, proverei a usare makeExprParser lowkey
+pComparison = do
+    left <- pAExpr
+    op <- pCOpName
+    BinOp op left <$> pAExpr
 
-operatorTable :: [[Operator Parser Expr]]
-operatorTable =
-    [ [ Prefix (MonOp Not <$ symbol "!")
-      , Prefix (MonOp Neg <$ symbol "-")
-      , Prefix (MonOp Pos <$ symbol "+") ]
+pCOpName :: Parser Op2
+pCOpName = choice
+    [ Eq <$ symbol "=="
+    , Ne <$ symbol "!="
+    , Ge <$ symbol ">="
+    , Le <$ symbol "<="
+    , Gt <$ symbol ">"
+    , Lt <$ symbol "<"
+    ]
+
+bOpTable :: [[Operator Parser Expr]]
+bOpTable =
+    [ [ Prefix (MonOp Not <$ symbol "!") ]
+    , [ InfixL (BinOp And <$ symbol "&&") ]
+    , [ InfixL (BinOp Or <$ symbol "||") ]
+    ]
+
+-- Arithmetic Expression Parser
+pAExpr :: Parser Expr
+pAExpr = makeExprParser pATerm aOpTable
+
+pATerm :: Parser Expr
+pATerm = choice
+    [ pIde TyInt
+    , NumLit <$> integer
+    , parens pAExpr
+    ]
+
+aOpTable :: [[Operator Parser Expr]]
+aOpTable =
+    [ [ Prefix (MonOp Neg <$ symbol "-")
+      , Prefix (MonOp Pos <$ symbol "+")
+      ]
     , [ InfixL (BinOp Mult <$ symbol "*")
-      , InfixL (BinOp Div <$ symbol "/") ]
+      , InfixL (BinOp Div <$ symbol "/")
+      ]
     , [ InfixL (BinOp Add <$ symbol "+")
-      , InfixL (BinOp Sub <$ symbol "-") ]
-    , [ InfixN (BinOp Le <$ symbol "<=")
-      , InfixN (BinOp Ge <$ symbol ">=")
-      , InfixN (BinOp Gt <$ symbol ">")
-      , InfixN (BinOp Lt <$ symbol "<")
-      , InfixN (BinOp Ne <$ symbol "!=")
-      , InfixN (BinOp Eq <$ symbol "==") ]
-    , [ InfixL (BinOp And  <$ symbol "&&") ]
-    , [ InfixL (BinOp Or   <$ symbol "||") ]
+      , InfixL (BinOp Sub <$ symbol "-")
+      ] ]
+
+pIde :: Type -> Parser Expr
+pIde exprType = do
+    ide <- identifier
+    mt <- S.gets (M.lookup ide)
+    case mt of
+        Just t -> 
+            if t == exprType then return $ Ide ide t
+            else fail "Variable not correct type"
+        Nothing -> error ("Undefined variable: " ++ show ide)
+
+-- Quantum Circuit Parser
+pQExpr :: Parser Expr
+pQExpr = choice
+    [ pIde TyQC
+    , symbol "QuantumCircuit" *> parens (QC [] <$> pAExpr <*> (symbol "," *> pAExpr))
     ]
+
 
 -- Command Parser
 
@@ -61,28 +104,38 @@ pStmt :: Parser Command
 pStmt = do
     l <- identifier
     choice
-        [ symbol "<-" *> (Assign l <$> pExpr <* symbol ";")
+        [ symbol "<-" *> pAssign l <* symbol ";"
         , symbol "." *> pMethod l <* symbol ";"
         ]
+
+pAssign :: Vname -> Parser Command
+pAssign l = do
+    (e,t) <- choice
+        [ (\e -> (e, TyQC)) <$> try pQExpr -- TODO: Non e' bellissimo, ci sono altri modi senza il try?
+        , (\e -> (e, TyBool)) <$> try pBExpr
+        , (\e -> (e, TyInt)) <$> pAExpr
+        ]
+    S.modify (M.insert l t)
+    return $ Assign l e
 
 pMethod :: Vname -> Parser Command
 pMethod l = choice
     [ UnitOp l <$> pGate
-    , symbol "measure" *> parens (Measure l <$> pExpr <*> (symbol "," *> pExpr))
-    , symbol "compose" *> parens (Compose l <$> pExpr)
-    , symbol "addQbits" *> parens (AddQ l <$> pExpr)
-    , symbol "addBits" *> parens (AddB l <$> pExpr)
+    , symbol "measure" *> parens (Measure l <$> pAExpr <*> (symbol "," *> pAExpr))
+    , symbol "compose" *> parens (Compose l <$> pQExpr)
+    , symbol "addQbits" *> parens (AddQ l <$> pAExpr)
+    , symbol "addBits" *> parens (AddB l <$> pAExpr)
     ]
 
 pGate :: Parser Gate
 pGate = choice
-    [ MonGate <$> monGate <*> parens pExpr
-    , BinGate <$> binGate <*> (symbol "(" *> pExpr) <*> (symbol "," *> pExpr <* symbol ")")
+    [ MonGate <$> monGate <*> parens pAExpr
+    , BinGate <$> binGate <*> (symbol "(" *> pAExpr) <*> (symbol "," *> pAExpr <* symbol ")")
     ]
 pIf :: Parser Command
 pIf = do
     _ <- symbol "if"
-    cond <- pExpr
+    cond <- pBExpr
     _ <- symbol "then"
     thenCom <- pCommand
     elseCom <- optional (symbol "else" *> pCommand)
@@ -91,7 +144,7 @@ pIf = do
 pWhile :: Parser Command
 pWhile = do
     _ <- symbol "while"
-    cond <- pExpr
+    cond <- pBExpr
     _ <- symbol ":"
     _ <- symbol "["
     annot <- L.pBExpr
@@ -106,11 +159,16 @@ pProgram = do
     _ <- symbol "["
     pre <- L.pBExpr
     _ <- symbol "]"
-    com <- pCommand
+    com <- pBlock
     _ <- symbol "["
     post <- L.pBExpr
     _ <- symbol "]"
     return $ HoareTriple pre com post
 
 parseProgram :: String -> String -> Either (ParseErrorBundle String Void) HoareTriple
-parseProgram filepath input = parse (sc *> pProgram <* eof) filepath input
+parseProgram input filepath =
+    let parser = runParserT (sc *> pProgram <* eof) input filepath
+        res = S.runState parser M.empty
+    in case res of
+        (Left err, _) -> Left err
+        (Right x, _) -> Right x

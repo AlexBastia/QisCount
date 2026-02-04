@@ -6,8 +6,12 @@ import Data.Void (Void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Data.Map as M
+import qualified Control.Monad.State as S
 
-type Parser = Parsec Void String
+type Env = M.Map String Type 
+type Parser = ParsecT Void String (S.State Env)
+
 -- Space Consumer
 sc :: Parser ()
 sc = L.space
@@ -29,9 +33,9 @@ integer = lexeme L.decimal
 
 -- Variable parser
 identifier :: Parser Vname
-identifier = (lexeme . try) (p >>= check)
+identifier = (lexeme . try) (par >>= check)
   where
-    p = (:) <$> letterChar <*> many alphaNumChar <* notFollowedBy (symbol "(")
+    par = (:) <$> letterChar <*> many alphaNumChar <* notFollowedBy (symbol "(")
     check x = if x `elem` rwords
                 then fail $ "Cannot use " ++ show x ++ " as a variable name."
                 else return x

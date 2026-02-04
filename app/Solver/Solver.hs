@@ -6,11 +6,11 @@ module Solver.Solver where
 
 import Logic.Syntax
 
+import Control.Monad.State
 import Data.SBV
 import qualified Data.SBV.List as L
 import qualified Data.SBV.Tuple as T
-
--- Quantum Expressions
+import qualified Data.Map as M
 
 data SymbGateName
   = H | X | CX | RX | MEAS
@@ -22,7 +22,30 @@ data SQC = SQC
   { sGates :: SList Gate
   , sQb :: SInteger
   , sCb :: SInteger
-  }
+  } deriving (Show)
+
+-- Store
+data SymVar 
+  = VBool SBool 
+  | VInt  SInteger 
+  | VQC   SQC 
+  deriving (Show)
+
+type Env = M.Map String SymVar
+type EvalM a = StateT Env Symbolic a
+
+-- Quantum Expressions
+
+getSymQC :: String -> EvalM SQC
+getSymQC name = do
+    env <- get
+    case M.lookup name env of
+        Just (VQC s) -> return s
+        Just _ -> error $ "Type Mismatch: Variable " ++ name ++ " is not a Quantum Circuit."
+        Nothing -> do
+            s <- lift $ sQC name
+            put $ M.insert name (VQC s) env
+            return s
 
 sQC :: String -> Symbolic SQC
 sQC ide = do
@@ -31,14 +54,14 @@ sQC ide = do
   gates <- sList (ide ++ "_gates")
   return $ SQC gates qb cb
 
-evalQExpr :: QExpr -> Symbolic SQC
+evalQExpr :: QExpr -> EvalM SQC
 
 evalQExpr (QC qb cb) = do
   sqb <- evalAExpr qb
   scb <- evalAExpr cb
   return $ SQC { sGates = L.nil :: SList Gate, sQb = sqb, sCb = scb}
 
-evalQExpr (QIde ide) = sQC ide
+evalQExpr (QIde ide) = getSymQC ide
 
 evalQExpr (Compose q1 q2) = do
   sq1 <- evalQExpr q1
@@ -63,7 +86,8 @@ evalQExpr (QF2 n qc b1 b2) = do
 matchGate :: QFname -> SymbGateName
 matchGate (M Logic.Syntax.H) = Solver.Solver.H
 matchGate (M Logic.Syntax.X) = Solver.Solver.X
-matchGate (M _) = undefined
+matchGate (M Logic.Syntax.ADQ) = error "ADQ is not a quantum gate"
+matchGate (M Logic.Syntax.ADB) = error "ADB is not a quantum gate"
 
 matchGate (B Logic.Syntax.CX) = Solver.Solver.CX
 matchGate (B Logic.Syntax.RX) = Solver.Solver.RX
@@ -71,9 +95,20 @@ matchGate (B Logic.Syntax.MES) = Solver.Solver.MEAS
 
 -- Boolean Expressions
 
-evalBExpr :: BExpr -> Symbolic SBool
+getSymBool :: String -> EvalM SBool
+getSymBool name = do
+    env <- get
+    case M.lookup name env of
+        Just (VBool s) -> return s 
+        Just _ -> error $ "Type Mismatch: Variable " ++ name ++ " is not an Integer."
+        Nothing -> do
+            s <- lift $ sBool name
+            put $ M.insert name (VBool s) env
+            return s
+
+evalBExpr :: BExpr -> EvalM SBool
 evalBExpr (BoolLit k) = return $ literal k
-evalBExpr (BIde ide) = sBool ide
+evalBExpr (BIde ide) = getSymBool ide
 evalBExpr (Comparison op a b) = do
   sa <- evalAExpr a
   sb <- evalAExpr b
@@ -95,12 +130,27 @@ evalBExpr (Or a b) = do
   sa <- evalBExpr a
   sb <- evalBExpr b
   return (sa .|| sb)
+evalBExpr (Imp a b) = do
+  sa <- evalBExpr a
+  sb <- evalBExpr b
+  return (sa .=> sb)
 
 -- Arithmetic Expression
 
-evalAExpr :: AExpr -> Symbolic SInteger
+getSymInt :: String -> EvalM SInteger
+getSymInt name = do
+    env <- get
+    case M.lookup name env of
+        Just (VInt s) -> return s
+        Just _        -> error $ "Type Mismatch: " ++ name ++ " is not an Integer."
+        Nothing -> do
+            s <- lift $ sInteger name
+            put $ M.insert name (VInt s) env
+            return s
+
+evalAExpr :: AExpr -> EvalM SInteger
 evalAExpr (NumLit k) = return $ literal k
-evalAExpr (AIde ide) = sInteger ide
+evalAExpr (AIde ide) = getSymInt ide
 evalAExpr (BinOp op a b) = do
   sa <- evalAExpr a
   sb <- evalAExpr b
@@ -116,7 +166,7 @@ evalAExpr (MonOp op a) = do
     Pos -> return sa
 evalAExpr (QOp op qc par) = do
   sqc <- evalQExpr qc
-  -- spar <- map par evalAExpr per ora non li uso
+  -- spar <- map par evalAExpr    per ora non li uso
   case op of
     Wid -> return (sQb sqc + sCb sqc)
     GC -> return (L.length (sGates sqc))
@@ -127,9 +177,15 @@ evalAExpr (QOp op qc par) = do
 
 makeImp :: BExpr -> BExpr -> Symbolic SBool
 makeImp p q = do
-  hp <- evalBExpr p
-  th <- evalBExpr q
-  return $ hp .=> th
+  (res, _finalEnv) <- runStateT (evalImp) M.empty
+  return res
+
+  where
+    evalImp :: EvalM SBool
+    evalImp = do
+      hp <- evalBExpr p
+      th <- evalBExpr q
+      return $ hp .=> th
 
 verify :: BExpr -> BExpr -> IO ThmResult
 verify p q = prove $ makeImp p q

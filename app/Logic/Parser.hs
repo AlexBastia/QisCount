@@ -2,9 +2,12 @@ module Logic.Parser (pBExpr) where
 
 import Logic.Syntax
 import Program.Lexer
+import qualified Program.Syntax as P
 
 import Control.Monad.Combinators.Expr
 import Text.Megaparsec
+import qualified Data.Map as M
+import qualified Control.Monad.State as S
 
 -- Boolean Parser (parses the whole formula)
 pBExpr :: Parser BExpr
@@ -14,9 +17,20 @@ pBTerm :: Parser BExpr
 pBTerm = choice
     [ try pComparison 
     , BoolLit <$> (True <$ symbol "True" <|> False <$ symbol "False")
-    , BIde <$> identifier
+    , pBIde
     , parens pBExpr
     ]
+
+pBIde :: Parser BExpr
+pBIde = do
+    ide <- identifier
+    mt <- S.gets (M.lookup ide)
+    case mt of
+        Just P.TyBool -> return $ BIde ide
+        Just _ -> error "Variable has wrong type"
+        Nothing -> do
+            S.modify (M.insert ide P.TyBool)
+            return $ BIde ide
 
 pComparison :: Parser BExpr
 pComparison = do 
@@ -48,11 +62,22 @@ pAExpr = makeExprParser pATerm aOpTable
 
 pATerm :: Parser AExpr
 pATerm = choice
-    [ AIde <$> identifier
+    [ pAIde
     , NumLit <$> integer
     , parens pAExpr
     , QOp <$> pQOpName <*> (symbol "(" *> pQExpr) <*> many (symbol "," *> pAExpr) <* symbol ")"
     ]
+
+pAIde :: Parser AExpr
+pAIde = do
+    ide <- identifier
+    mt <- S.gets (M.lookup ide)
+    case mt of
+        Just P.TyInt -> return $ AIde ide
+        Just _ -> error "Variable has wrong type"
+        Nothing -> do
+            S.modify (M.insert ide P.TyInt)
+            return $ AIde ide
 
 pQOpName :: Parser QOpName
 pQOpName = choice
@@ -75,23 +100,44 @@ aOpTable =
 -- Quantum Circuit Parser
 pQExpr :: Parser QExpr
 pQExpr = choice
-    [ QIde <$> identifier
+    [ pQIde
     , symbol "QuantumCircuit" *> parens (QC <$> pAExpr <*> (symbol "," *> pAExpr))
     , symbol "compose" *> parens (Compose <$> pQExpr <*> (symbol "," *> pQExpr))
-    , QF <$> pQFName <*> (symbol "(" *> pQExpr) <*> (symbol "," *> pAExpr `sepBy` symbol "," <* symbol ")")
+    , QF1 <$> pQF1Name <*> (symbol "(" *> pQExpr) <*> pAExpr <* symbol ")"
+    , QF2 <$> pQF2Name <*> (symbol "(" *> pQExpr) <*> (symbol "," *> pAExpr) <*> (symbol "," *> pAExpr <* symbol ")")
     ]
 
-pQFName :: Parser QFname
-pQFName = choice
-    [ symbol "append" *> (APP <$> pGname)
-    , MES <$ symbol "measure" 
+pQIde :: Parser QExpr
+pQIde = do
+    ide <- identifier
+    mt <- S.gets (M.lookup ide)
+    case mt of
+        Just P.TyQC -> return $ QIde ide
+        Just _ -> error "Variable has wrong type"
+        Nothing -> do
+            S.modify (M.insert ide P.TyQC)
+            return $ QIde ide
+
+pQF1Name :: Parser QF1name
+pQF1Name = choice
+    [ symbol "append" *> lookAhead pGname1 -- I think this is how look ahead works
     , ADQ <$ symbol "addQbits"
     , ADB <$ symbol "addBits"
     ]
 
-pGname :: Parser Gname
-pGname = choice
+pQF2Name :: Parser QF2name
+pQF2Name = choice
+    [ symbol "append" *> pGname2
+    , MES <$ symbol "measure" 
+    ]
+
+pGname1 :: Parser QF1name
+pGname1 = choice
     [ H <$ symbol "H"
     , X <$ symbol "X"
-    , RX <$ symbol "RX"
+    ]
+
+pGname2 :: Parser QF2name
+pGname2 = choice
+    [ RX <$ symbol "RX"
     , CX <$ symbol "CX"]
