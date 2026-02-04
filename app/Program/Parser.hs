@@ -76,14 +76,14 @@ pIde exprType = do
     case mt of
         Just t -> 
             if t == exprType then return $ Ide ide t
-            else fail "Variable not correct type"
+            else fail ("Variable '" ++ show ide ++ "' of type '" ++ show t ++ "' doesn't match type '" ++ show exprType ++ "'")
         Nothing -> error ("Undefined variable: " ++ show ide)
 
 -- Quantum Circuit Parser
 pQExpr :: Parser Expr
 pQExpr = choice
     [ pIde TyQC
-    , symbol "QuantumCircuit" *> parens (QC [] <$> pAExpr <*> (symbol "," *> pAExpr))
+    , symbol "QuantumCircuit" *> parens (QC <$> pAExpr <*> (symbol "," *> pAExpr))
     ]
 
 
@@ -116,7 +116,7 @@ pAssign l = do
         , (\e -> (e, TyInt)) <$> pAExpr
         ]
     S.modify (M.insert l t)
-    return $ Assign l e
+    return $ Assign l e t
 
 pMethod :: Vname -> Parser Command
 pMethod l = choice

@@ -14,7 +14,7 @@ data Expr
     | Ide Vname Type
     | BinOp Op2 Expr Expr 
     | MonOp Op1 Expr
-    | QC [Gate] Expr Expr
+    | QC Expr Expr
     deriving (Show)
 
 data Op2
@@ -30,7 +30,7 @@ rwords = ["if", "then", "else", "while", "True", "False", "QuantumCircuit"]
 
 -- Commands
 data Command
-    = Assign Vname Expr
+    = Assign Vname Expr Type
     | Seq [Command]
     | If Expr Command (Maybe Command)
     | While Expr L.BExpr Command
@@ -55,8 +55,8 @@ data Gate2
     deriving (Show)
 
 data HoareTriple = HoareTriple
-    { p :: L.BExpr
-    , c :: Command
-    , q :: L.BExpr
+    { htP :: L.BExpr
+    , htC :: Command
+    , htQ :: L.BExpr
     }
     deriving(Show)

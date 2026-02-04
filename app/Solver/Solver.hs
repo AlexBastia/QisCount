@@ -37,14 +37,14 @@ type EvalM a = StateT Env Symbolic a
 -- Quantum Expressions
 
 getSymQC :: String -> EvalM SQC
-getSymQC name = do
+getSymQC ide = do
     env <- get
-    case M.lookup name env of
+    case M.lookup ide env of
         Just (VQC s) -> return s
-        Just _ -> error $ "Type Mismatch: Variable " ++ name ++ " is not a Quantum Circuit."
+        Just _ -> error $ "Type Mismatch: Variable " ++ ide ++ " is not a Quantum Circuit."
         Nothing -> do
-            s <- lift $ sQC name
-            put $ M.insert name (VQC s) env
+            s <- lift $ sQC ide
+            put $ M.insert ide (VQC s) env
             return s
 
 sQC :: String -> Symbolic SQC
@@ -96,14 +96,14 @@ matchGate (B Logic.Syntax.MES) = Solver.Solver.MEAS
 -- Boolean Expressions
 
 getSymBool :: String -> EvalM SBool
-getSymBool name = do
+getSymBool ide = do
     env <- get
-    case M.lookup name env of
+    case M.lookup ide env of
         Just (VBool s) -> return s 
-        Just _ -> error $ "Type Mismatch: Variable " ++ name ++ " is not an Integer."
+        Just _ -> error $ "Type Mismatch: Variable " ++ ide ++ " is not a Boolean."
         Nothing -> do
-            s <- lift $ sBool name
-            put $ M.insert name (VBool s) env
+            s <- lift $ sBool ide
+            put $ M.insert ide (VBool s) env
             return s
 
 evalBExpr :: BExpr -> EvalM SBool
@@ -138,14 +138,14 @@ evalBExpr (Imp a b) = do
 -- Arithmetic Expression
 
 getSymInt :: String -> EvalM SInteger
-getSymInt name = do
+getSymInt ide = do
     env <- get
-    case M.lookup name env of
+    case M.lookup ide env of
         Just (VInt s) -> return s
-        Just _        -> error $ "Type Mismatch: " ++ name ++ " is not an Integer."
+        Just _        -> error $ "Type Mismatch: " ++ ide ++ " is not an Integer."
         Nothing -> do
-            s <- lift $ sInteger name
-            put $ M.insert name (VInt s) env
+            s <- lift $ sInteger ide
+            put $ M.insert ide (VInt s) env
             return s
 
 evalAExpr :: AExpr -> EvalM SInteger
@@ -164,7 +164,7 @@ evalAExpr (MonOp op a) = do
   case op of
     Neg -> return (-sa)
     Pos -> return sa
-evalAExpr (QOp op qc par) = do
+evalAExpr (QOp op qc _) = do
   sqc <- evalQExpr qc
   -- spar <- map par evalAExpr    per ora non li uso
   case op of

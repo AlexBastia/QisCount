@@ -27,7 +27,7 @@ pBIde = do
     mt <- S.gets (M.lookup ide)
     case mt of
         Just P.TyBool -> return $ BIde ide
-        Just _ -> error "Variable has wrong type"
+        Just t -> error ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyBool ++ "'")
         Nothing -> do
             S.modify (M.insert ide P.TyBool)
             return $ BIde ide
@@ -74,7 +74,7 @@ pAIde = do
     mt <- S.gets (M.lookup ide)
     case mt of
         Just P.TyInt -> return $ AIde ide
-        Just _ -> error "Variable has wrong type"
+        Just t -> error ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyInt ++ "'")
         Nothing -> do
             S.modify (M.insert ide P.TyInt)
             return $ AIde ide
@@ -113,7 +113,7 @@ pQIde = do
     mt <- S.gets (M.lookup ide)
     case mt of
         Just P.TyQC -> return $ QIde ide
-        Just _ -> error "Variable has wrong type"
+        Just t -> error ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyQC ++ "'")
         Nothing -> do
             S.modify (M.insert ide P.TyQC)
             return $ QIde ide
