@@ -1,5 +1,13 @@
+{-| 
+Module      : Program.Parser
+Description : Parses the program.
+
+Includes all parsers for the program part of the triple and the general 
+complete parser for the whole program.
+-}
+
 {-# LANGUAGE TupleSections #-}
-module Program.Parser (parseProgram) where
+module Program.Parser where
 
 import Program.Syntax
 import Program.Lexer

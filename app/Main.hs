@@ -1,3 +1,11 @@
+{-| 
+Module      : Main
+Description : Determines validity of a given Hoare triple.
+
+Coordinates the parser, the VC generator and the solver in order to output the total validity (or not) of 
+  the given triple.
+-}
+
 module Main (main) where
 
 import Program.Parser

@@ -1,3 +1,10 @@
+{-| 
+Module      : Logic.Syntax
+Description : Types for logic formulas
+
+Defines the AST created from the parsing of Hoare logic formulas (precondition, postcondition and assertions). 
+-}
+
 module Logic.Syntax where
 
 -- Boolean Value

@@ -1,4 +1,12 @@
-module Logic.Parser (pBExpr) where
+{-| 
+Module      : Logic.Parser
+Description : Parses logic formulas
+
+Implements parsers for logical expressions (preconditions, postconditions and assertions). Uses
+the same parser monad transformer and state map as the program parser.
+-}
+
+module Logic.Parser where
 
 import Logic.Syntax
 import Program.Lexer
@@ -119,7 +127,7 @@ pQIde = do
 
 pQF1Name :: Parser QF1name
 pQF1Name = choice
-    [ symbol "append" *> lookAhead pGname1 -- TODO: I think this is how look ahead works
+    [ symbol "append" *> lookAhead pGname1
     , ADQ <$ symbol "addQbits"
     , ADB <$ symbol "addBits"
     ]

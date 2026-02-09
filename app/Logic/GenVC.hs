@@ -1,12 +1,27 @@
+{-| 
+Module      : Logic.GenVC
+Description : Generates VCs for a given triple
+
+Implements Hoare rules and backpropagation to generate the Verification Conditions
+of a minimaly annotated program (only While-loop assertions) given pre and post conditions.
+-}
+
 module Logic.GenVC where
 
 import Program.Syntax
 import qualified Logic.Syntax as L
 
+-- | Generates array of VCs for a given Hoare triple
 genVCs :: HoareTriple -> [L.BExpr]
 genVCs (HoareTriple p (Seq cs) q) = genRSeq p (reverse cs) q
 genVCs _ = error "Command isn't a Sequence"
 
+---------------------
+-- * VC generators --
+---------------------
+
+{-| Generates array of VCs given pre and post conditions formulas 
+and a list of commands in reverse order -}
 genRSeq :: L.BExpr -> [Command] -> L.BExpr -> [L.BExpr]
 
 genRSeq p [] q = [L.Imp p q]
@@ -16,9 +31,12 @@ genRSeq p (c:cs) q = do
         Assign ide e TyBool -> genRSeq p cs (subBool q ide (BE $ makeLogicBool e))
         Assign ide e TyInt -> genRSeq p cs (subBool q ide (AE $ makeLogicArithm e))
         Assign ide e TyQC -> genRSeq p cs (subBool q ide (QE $ makeLogicQCirc e))
-        UnitOp ide (MonGate g e) -> genRSeq p cs (subBool q ide (QE $ L.QF1 (translateMonoGate g) (L.QIde ide) (makeLogicArithm e)))
-        UnitOp ide (BinGate g e1 e2) -> genRSeq p cs (subBool q ide (QE $ L.QF2 (translateBinGate g) (L.QIde ide) (makeLogicArithm e1) (makeLogicArithm e2)))
-        Measure ide e1 e2 -> genRSeq p cs (subBool q ide (QE $ L.QF2 L.MES (L.QIde ide) (makeLogicArithm e1) (makeLogicArithm e2)))
+        UnitOp ide (MonGate g e) -> 
+            genRSeq p cs (subBool q ide (QE $ L.QF1 (translateMonoGate g) (L.QIde ide) (makeLogicArithm e)))
+        UnitOp ide (BinGate g e1 e2) -> 
+            genRSeq p cs (subBool q ide (QE $ L.QF2 (translateBinGate g) (L.QIde ide) (makeLogicArithm e1) (makeLogicArithm e2)))
+        Measure ide e1 e2 -> 
+            genRSeq p cs (subBool q ide (QE $ L.QF2 L.MES (L.QIde ide) (makeLogicArithm e1) (makeLogicArithm e2)))
         Compose ide qc -> genRSeq p cs (subBool q ide (QE $ L.Compose (L.QIde ide) (makeLogicQCirc qc)))
         AddQ ide e -> genRSeq p cs (subBool q ide (QE $ L.QF1 L.ADQ (L.QIde ide) (makeLogicArithm e)))
         AddB ide e -> genRSeq p cs (subBool q ide (QE $ L.QF1 L.ADB (L.QIde ide) (makeLogicArithm e)))
@@ -29,16 +47,23 @@ genRSeq p (c:cs) q = do
                 (Just c2) -> genRSeq p (c1:cs) (L.Imp be q) ++ genRSeq p (c2:cs) (L.Imp (L.Not be) q)
                 Nothing -> genRSeq p (c1:cs) (L.Imp be q) ++ genRSeq p cs (L.Imp (L.Not be) q)
 
--- TODO: does the second check on the invariant guarantee correctness?
-        While cond assert com -> genRSeq p cs assert ++ genRSeq (L.And be assert) [com] assert ++ genRSeq (L.And assert (L.Not be)) [] q
+        While cond assert com -> 
+            genRSeq p cs assert ++ genRSeq (L.And be assert) [com] assert ++ genRSeq (L.And assert (L.Not be)) [] q
             where
               be = makeLogicBool cond
 
         Seq s -> genRSeq p (reverse s ++ cs) q
 
+
+---------------------
+-- * Substitutions --
+---------------------
+
+-- | Logical expression sum type, can be boolean, arithmetic or quantum
 data LExpr =
     BE L.BExpr | AE L.AExpr | QE L.QExpr
 
+-- | Performs boolean variable name substitutions
 subBool :: L.BExpr -> Vname -> LExpr -> L.BExpr
 subBool (L.BIde be) ide (BE val)
     | be == ide = val
@@ -51,6 +76,7 @@ subBool (L.Imp be1 be2) ide val = L.Imp (subBool be1 ide val) (subBool be2 ide v
 subBool (L.Not be) ide val = L.Not (subBool be ide val)
 subBool e _ _ = e
 
+-- | Performs integer variable name substitutions
 subArithm :: L.AExpr -> Vname -> LExpr -> L.AExpr
 subArithm (L.AIde ae) ide (AE val)
     | ae == ide = val
@@ -61,6 +87,7 @@ subArithm (L.MonOp op ae) ide val = L.MonOp op (subArithm ae ide val)
 subArithm (L.QOp op qe aes) ide val = L.QOp op (subQCirc qe ide val) (subAL aes ide val)
 subArithm e _ _ = e
 
+-- | Performs quantum cirucit variable name substitutions
 subQCirc :: L.QExpr -> Vname -> LExpr -> L.QExpr
 subQCirc (L.QIde qe) ide (QE val)
     | qe == ide = val
@@ -72,10 +99,19 @@ subQCirc (L.QF1 op qe ae) ide val = L.QF1 op (subQCirc qe ide val) (subArithm ae
 subQCirc (L.QF2 op qe ae1 ae2) ide val = L.QF2 op (subQCirc qe ide val) (subArithm ae1 ide val) (subArithm ae2 ide val)
 subQCirc e _ _ = e
 
+
+--------------------
+-- * Translations --
+--------------------
+
+{-| Substitutes same variable name for same value in list of
+    arithmetic expressions -}
 subAL :: [L.AExpr] -> String -> LExpr -> [L.AExpr]
 subAL [] _ _ = []
 subAL (ae:aes) ide val = subArithm ae ide val : subAL aes ide val
 
+{-| Given a program expression with boolean value,
+returns the equivalent logic expression -}
 makeLogicBool :: Expr -> L.BExpr
 makeLogicBool (BoolLit b) = L.BoolLit b
 makeLogicBool (Ide ide t) =
@@ -93,6 +129,8 @@ makeLogicBool (BinOp Ge e1 e2) = L.Comparison L.Ge (makeLogicArithm e1) (makeLog
 makeLogicBool (BinOp Le e1 e2) = L.Comparison L.Le (makeLogicArithm e1) (makeLogicArithm e2)
 makeLogicBool _ = error "Impossible to translate given expression into a BExpr"
 
+{-| Given a program expression with integer value,
+returns the equivalent logic expression -}
 makeLogicArithm :: Expr -> L.AExpr
 makeLogicArithm (NumLit a) = L.NumLit a
 makeLogicArithm (Ide ide t) =
@@ -107,6 +145,8 @@ makeLogicArithm (BinOp Mult e1 e2) = L.BinOp L.Mult (makeLogicArithm e1) (makeLo
 makeLogicArithm (BinOp Div e1 e2) = L.BinOp L.Div (makeLogicArithm e1) (makeLogicArithm e2)
 makeLogicArithm _ = error "Impossible to translate given expression into an AExpr"
 
+{-| Given a program expression with quantum circuit value,
+returns the equivalent logic expression -}
 makeLogicQCirc :: Expr -> L.QExpr
 makeLogicQCirc (QC e1 e2) = L.QC (makeLogicArithm e1) (makeLogicArithm e2)
 makeLogicQCirc (Ide ide t) =
@@ -114,9 +154,6 @@ makeLogicQCirc (Ide ide t) =
         TyQC -> L.QIde ide
         ty -> error ("Variable '" ++ show ide ++ "' is of type '" ++ show ty ++ "', expected " ++ show TyQC)
 makeLogicQCirc _ = error "Impossible to translate given expression into a QExpr"
-
-data GateName
-    = MG Gate1 | BG Gate2
 
 translateMonoGate :: Gate1 -> L.QF1name
 translateMonoGate H = L.H

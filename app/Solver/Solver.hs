@@ -12,7 +12,7 @@ of the proof attempt is returned.
 {-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TypeApplications   #-}
 
-module Solver.Solver (verifyVCs) where
+module Solver.Solver where
 
 import Logic.Syntax
 
@@ -31,9 +31,9 @@ data GateName
   = H | X | CX | RX | MEAS
 mkSymbolic [''GateName]
 
--- | To simplify the translation into a symbolic value, every gate
--- has two integer parameters. In the case that only one is needed,
--- only the first is used and the second is set to 0.
+{-| To simplify the translation into a symbolic value, every gate
+has two integer parameters. In the case that only one is needed,
+only the first is used and the second is set to 0. -}
 type Gate = (GateName, Integer, Integer)
 data SQC = SQC
   { sGates :: SList Gate
@@ -64,8 +64,8 @@ data SymVar
 -- | Map from variable names to symbolic type.
 type Env = M.Map String SymVar
 
--- | SBV Symbolic monad wrapped in State monad. Allows access to the store
--- while evaluating expressions.
+{-| SBV Symbolic monad wrapped in State monad. Allows access to the store
+while evaluating expressions. -}
 type EvalM a = StateT Env Symbolic a
 
 
@@ -216,6 +216,7 @@ evalAExpr (QOp op qc _) = do
     Wid -> return (sQb sqc + sCb sqc)
     GC -> return (L.length (sGates sqc))
 
+-- | Calculates the depth of a given qbit of a circuit.
 calcDepth :: SList Gate -> SInteger -> SInteger
 calcDepth gates qb = finalDepth
   where
@@ -250,8 +251,8 @@ calcDepth gates qb = finalDepth
 -- * Main Solver --
 -------------------
 
--- | Evaluates and proves the list of Logic Boolean Expressions.
--- Returns the result of each verification.
+{-| Evaluates and proves the list of Logic Boolean Expressions.
+Returns the result of each verification. -}
 verifyVCs :: [BExpr] -> [IO ThmResult]
 verifyVCs = map verifyVC
   where

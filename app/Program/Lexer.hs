@@ -1,3 +1,12 @@
+{-| 
+Module      : Program.Lexer
+Description : Usefull parser helpers for common tokens.
+
+Implements parsers for symbols, lexemes, integers identifiers and gates.
+Also includes helpers for brackets and the definition of the `Parser` type that includes the
+`State` monad.
+-}
+
 module Program.Lexer where
 
 import Program.Syntax
@@ -9,29 +18,31 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Data.Map as M
 import qualified Control.Monad.State as S
 
+-- | Map to store variable types
 type Env = M.Map String Type 
+-- | Parser monad transformer with String input stream and State inner monad
 type Parser = ParsecT Void String (S.State Env)
 
--- Space Consumer
+-- | Space Consumer
 sc :: Parser ()
 sc = L.space
   space1
   (L.skipLineComment "//")
   (L.skipBlockComment "/*" "*/")
 
--- Lexeme wrapper
+-- | Lexeme wrapper
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
--- Symbol parser
+-- | Symbol parser
 symbol :: String -> Parser String
 symbol = L.symbol sc
 
--- Integer parser
+-- | Integer parser
 integer :: Parser Integer
 integer = lexeme L.decimal
 
--- Variable parser
+-- | Variable name parser
 identifier :: Parser Vname
 identifier = (lexeme . try) (par >>= check)
   where
@@ -40,7 +51,7 @@ identifier = (lexeme . try) (par >>= check)
                 then fail $ "Cannot use " ++ show x ++ " as a variable name."
                 else return x
 
--- Gate Name parser
+-- | Gate Name parser
 monGate :: Parser Gate1
 monGate = choice
     [ H <$ symbol "H"

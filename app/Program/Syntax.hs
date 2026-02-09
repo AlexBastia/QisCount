@@ -1,3 +1,11 @@
+{-|
+Module: Program.Syntax
+Description: Proto-Qiskit syntax types
+
+Defines the AST used in the parsing of the program (excluding logica formule) and the 
+describes the format of a complete Hoare triple.
+-}
+
 module Program.Syntax where
 
 import qualified Logic.Syntax as L
