@@ -15,7 +15,7 @@ pBExpr = makeExprParser pBTerm bOpTable
 
 pBTerm :: Parser BExpr
 pBTerm = choice
-    [ try pComparison 
+    [ try pComparison
     , BoolLit <$> (True <$ symbol "True" <|> False <$ symbol "False")
     , pBIde
     , parens pBExpr
@@ -27,17 +27,16 @@ pBIde = do
     mt <- S.gets (M.lookup ide)
     case mt of
         Just P.TyBool -> return $ BIde ide
-        Just t -> error ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyBool ++ "'")
+        Just t -> fail ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyBool ++ "'")
         Nothing -> do
             S.modify (M.insert ide P.TyBool)
             return $ BIde ide
 
 pComparison :: Parser BExpr
-pComparison = do 
+pComparison = do
     left <- pAExpr
     op <- pCOpName
-    right <- pAExpr
-    return (Comparison op left right)
+    Comparison op left <$> pAExpr
 
 pCOpName :: Parser COp
 pCOpName = choice
@@ -74,7 +73,7 @@ pAIde = do
     mt <- S.gets (M.lookup ide)
     case mt of
         Just P.TyInt -> return $ AIde ide
-        Just t -> error ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyInt ++ "'")
+        Just t -> fail ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyInt ++ "'")
         Nothing -> do
             S.modify (M.insert ide P.TyInt)
             return $ AIde ide
@@ -86,15 +85,15 @@ pQOpName = choice
     , Dep <$ symbol "depth"]
 
 aOpTable :: [[Operator Parser AExpr]]
-aOpTable = 
+aOpTable =
     [ [ Prefix (MonOp Neg <$ symbol "-")
-      , Prefix (MonOp Pos <$ symbol "+") 
+      , Prefix (MonOp Pos <$ symbol "+")
       ]
     , [ InfixL (BinOp Mult <$ symbol "*")
-      , InfixL (BinOp Div <$ symbol "/") 
+      , InfixL (BinOp Div <$ symbol "/")
       ]
     , [ InfixL (BinOp Add <$ symbol "+")
-      , InfixL (BinOp Sub <$ symbol "-") 
+      , InfixL (BinOp Sub <$ symbol "-")
       ] ]
 
 -- Quantum Circuit Parser
@@ -113,14 +112,14 @@ pQIde = do
     mt <- S.gets (M.lookup ide)
     case mt of
         Just P.TyQC -> return $ QIde ide
-        Just t -> error ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyQC ++ "'")
+        Just t -> fail ("Variable '" ++ show ide ++ "' has wrong type '" ++ show t ++ "', expected '" ++ show P.TyQC ++ "'")
         Nothing -> do
             S.modify (M.insert ide P.TyQC)
             return $ QIde ide
 
 pQF1Name :: Parser QF1name
 pQF1Name = choice
-    [ symbol "append" *> lookAhead pGname1 -- I think this is how look ahead works
+    [ symbol "append" *> lookAhead pGname1 -- TODO: I think this is how look ahead works
     , ADQ <$ symbol "addQbits"
     , ADB <$ symbol "addBits"
     ]
@@ -128,7 +127,7 @@ pQF1Name = choice
 pQF2Name :: Parser QF2name
 pQF2Name = choice
     [ symbol "append" *> pGname2
-    , MES <$ symbol "measure" 
+    , MES <$ symbol "measure"
     ]
 
 pGname1 :: Parser QF1name

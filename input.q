@@ -1,14 +1,8 @@
-[n > 0]
+[True]
 {
-qc <- QuantumCircuit(3, 3);
-qc.H(0);
-qc.CX(0, 1);
-qc.H(0);
-i <- 0;
-while i != n: [gatecount(qc) == 3 + i && n > 0]
-{
-    i <- i + 1;
-    qc.H(0);
+    x <- 2 - 1;
+    qc <- QuantumCircuit(3,3);
+    qc.H(x);
+    qc.H(2);
 }
-}
-[gatecount(qc) <= (3 * (n + 2))]
+[depth(qc, 1) == 1]

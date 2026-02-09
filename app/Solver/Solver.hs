@@ -1,8 +1,18 @@
+{-|
+Module      : Solver.Solver
+Description : Proves the validity of a Logic BExpr
+
+Evaluates the semantic value of a Logic expression using SBV and a store to maintain variable name
+and type coherence.
+The symbolic version of the expression is then passed to an SMT solver (in this case 'Z3') and the result
+of the proof attempt is returned.
+-}
+
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TypeApplications   #-}
 
-module Solver.Solver where
+module Solver.Solver (verifyVCs) where
 
 import Logic.Syntax
 
@@ -12,30 +22,58 @@ import qualified Data.SBV.List as L
 import qualified Data.SBV.Tuple as T
 import qualified Data.Map as M
 
-data SymbGateName
+--------------------------------
+-- * Symbolic Quantum Circuit --
+--------------------------------
+
+-- | Note that the `measure` operation also counts as a quantum gate.
+data GateName
   = H | X | CX | RX | MEAS
-mkSymbolic [''SymbGateName]
+mkSymbolic [''GateName]
 
-type Gate = (SymbGateName, Integer, Integer)
-
+-- | To simplify the translation into a symbolic value, every gate
+-- has two integer parameters. In the case that only one is needed,
+-- only the first is used and the second is set to 0.
+type Gate = (GateName, Integer, Integer)
 data SQC = SQC
   { sGates :: SList Gate
   , sQb :: SInteger
   , sCb :: SInteger
   } deriving (Show)
 
--- Store
+-- | Creates a new symbolic Quantum Circuit.
+sQC :: String -> Symbolic SQC
+sQC ide = do
+  qb <- sInteger (ide ++ "_qb")
+  cb <- sInteger (ide ++ "_cb")
+  gates <- sList (ide ++ "_gates")
+  return $ SQC gates qb cb
+
+
+----------------------
+-- * Variable Store --
+----------------------
+
+-- | Symbolic version of the three types of possible variables.
 data SymVar
   = VBool SBool
   | VInt  SInteger
   | VQC   SQC
   deriving (Show)
 
+-- | Map from variable names to symbolic type.
 type Env = M.Map String SymVar
+
+-- | SBV Symbolic monad wrapped in State monad. Allows access to the store
+-- while evaluating expressions.
 type EvalM a = StateT Env Symbolic a
 
--- Quantum Expressions
 
+---------------------------
+-- * Semantic Evaluation --
+---------------------------
+
+-- 1. Quantum Expressions
 getSymQC :: String -> EvalM SQC
 getSymQC ide = do
     env <- get
@@ -46,13 +84,6 @@ getSymQC ide = do
             s <- lift $ sQC ide
             put $ M.insert ide (VQC s) env
             return s
-
-sQC :: String -> Symbolic SQC
-sQC ide = do
-  qb <- sInteger (ide ++ "_qb")
-  cb <- sInteger (ide ++ "_cb")
-  gates <- sList (ide ++ "_gates")
-  return $ SQC gates qb cb
 
 evalQExpr :: QExpr -> EvalM SQC
 
@@ -66,35 +97,46 @@ evalQExpr (QIde ide) = getSymQC ide
 evalQExpr (Compose q1 q2) = do
   sq1 <- evalQExpr q1
   sq2 <- evalQExpr q2
-  return $ SQC (sGates sq1 L.++ sGates sq2) (sQb sq1) (sCb sq1)
+  return $ SQC (sGates sq1 L.++ sGates sq2) (sQb sq1 `smax` sQb sq2) (sCb sq1 `smax` sQb sq2)
+
+evalQExpr (QF1 ADQ qc a) = do
+  sq <- evalQExpr qc
+  sa <- evalAExpr a
+  return $ SQC (sGates sq) (sQb sq + sa) (sCb sq)
+
+evalQExpr (QF1 ADB qc a) = do
+  sq <- evalQExpr qc
+  sa <- evalAExpr a
+  return $ SQC (sGates sq) (sQb sq) (sCb sq + sa)
 
 evalQExpr (QF1 n qc b) = do
   sq <- evalQExpr qc
-  let sOpName = literal $ matchGate (M n)
+  let sOpName = matchGate (M n)
   sb <- evalAExpr b
-  let sG = T.tuple (sOpName, sb, 0)
-  return $ SQC (sG L..: sGates sq) (sQb sq) (sCb sq)
+  let noSecondOperand = 0
+  let sg = T.tuple (sOpName, sb, noSecondOperand)
+  return $ SQC (sg L..: sGates sq) (sQb sq) (sCb sq)
 
 evalQExpr (QF2 n qc b1 b2) = do
   sq <- evalQExpr qc
-  let sOpName = literal $ matchGate (B n)
+  let sOpName = matchGate (B n)
   sb1 <- evalAExpr b1
   sb2 <- evalAExpr b2
-  let sG = T.tuple (sOpName, sb1, sb2)
-  return $ SQC (sG L..: sGates sq) (sQb sq) (sCb sq)
+  let sg = T.tuple (sOpName, sb1, sb2)
+  return $ SQC (sg L..: sGates sq) (sQb sq) (sCb sq)
 
-matchGate :: QFname -> SymbGateName
-matchGate (M Logic.Syntax.H) = Solver.Solver.H
-matchGate (M Logic.Syntax.X) = Solver.Solver.X
+-- | Returns corresponding symbolic version of a Logic Quantum Gate.
+matchGate :: QFname -> SGateName
+matchGate (M Logic.Syntax.H) = sH
+matchGate (M Logic.Syntax.X) = sX
 matchGate (M Logic.Syntax.ADQ) = error "ADQ is not a quantum gate"
 matchGate (M Logic.Syntax.ADB) = error "ADB is not a quantum gate"
 
-matchGate (B Logic.Syntax.CX) = Solver.Solver.CX
-matchGate (B Logic.Syntax.RX) = Solver.Solver.RX
-matchGate (B Logic.Syntax.MES) = Solver.Solver.MEAS
+matchGate (B Logic.Syntax.CX) = sCX
+matchGate (B Logic.Syntax.RX) = sRX
+matchGate (B Logic.Syntax.MES) = sMEAS
 
--- Boolean Expressions
-
+-- 2. Boolean Expressions
 getSymBool :: String -> EvalM SBool
 getSymBool ide = do
     env <- get
@@ -135,8 +177,7 @@ evalBExpr (Imp a b) = do
   sb <- evalBExpr b
   return (sa .=> sb)
 
--- Arithmetic Expression
-
+-- 3. Arithmetic Expression
 getSymInt :: String -> EvalM SInteger
 getSymInt ide = do
     env <- get
@@ -158,34 +199,68 @@ evalAExpr (BinOp op a b) = do
     Add -> return (sa + sb)
     Sub -> return (sa - sb)
     Mult -> return (sa * sb)
-    Div -> undefined -- Do we really only want Ints?
+    Div -> return $ ite (sb ./= 0) (sa `sDiv` sb) (error "Possible division by 0.")
 evalAExpr (MonOp op a) = do
   sa <- evalAExpr a
   case op of
     Neg -> return (-sa)
     Pos -> return sa
+evalAExpr (QOp Dep qc [qb]) = do
+  sqc <- evalQExpr qc
+  sqb <- evalAExpr qb
+  return $ calcDepth (sGates sqc) sqb
+evalAExpr (QOp Dep _ _) = error "Wrong amount of arguments passed to 'depth'."
 evalAExpr (QOp op qc _) = do
   sqc <- evalQExpr qc
-  -- spar <- map par evalAExpr    per ora non li uso
   case op of
     Wid -> return (sQb sqc + sCb sqc)
     GC -> return (L.length (sGates sqc))
-    Dep -> undefined -- Mi sa che e' meglio lasciarlo uninterpreted
 
-
--- Main Solver
-
-makeImp :: BExpr -> BExpr -> Symbolic SBool
-makeImp p q = do
-  (res, _finalEnv) <- runStateT evalImp M.empty
-  return res
-
+calcDepth :: SList Gate -> SInteger -> SInteger
+calcDepth gates qb = finalDepth
   where
-    evalImp :: EvalM SBool
-    evalImp = do
-      hp <- evalBExpr p
-      th <- evalBExpr q
-      return $ hp .=> th
+      initialDepths :: SArray Integer Integer
+      initialDepths = constArray 0
 
-verify :: BExpr -> BExpr -> IO ThmResult
-verify p q = prove $ makeImp p q
+      updateDepths :: SArray Integer Integer -> SBV Gate -> SArray Integer Integer
+      updateDepths currentAcc sgate =
+          let
+              (op, q1, q2) = T.untuple sgate
+
+              d1 = readArray currentAcc q1
+              d2 = readArray currentAcc q2
+            
+              isTwoQubit = op .== sCX  .|| op .== sRX
+            
+              maxInputDepth = ite isTwoQubit (smax d1 d2) d1
+              newGateDepth  = maxInputDepth + 1
+            
+              acc1 = writeArray currentAcc q1 newGateDepth 
+              acc2 = writeArray acc1 q2 newGateDepth
+          in
+              ite isTwoQubit acc2 acc1
+
+      finalDepthsArray :: SArray Integer Integer
+      finalDepthsArray = L.foldl updateDepths initialDepths gates
+
+      finalDepth = readArray finalDepthsArray qb
+
+
+-------------------
+-- * Main Solver --
+-------------------
+
+-- | Evaluates and proves the list of Logic Boolean Expressions.
+-- Returns the result of each verification.
+verifyVCs :: [BExpr] -> [IO ThmResult]
+verifyVCs = map verifyVC
+  where
+    verifyVC :: BExpr -> IO ThmResult
+    verifyVC be = do
+      putStrLn $ "VC: " ++ show be
+      prove $ evalVC be
+
+evalVC :: BExpr -> Symbolic SBool
+evalVC be = do
+  (res, _finalEnv) <- runStateT (evalBExpr be) M.empty
+  return res

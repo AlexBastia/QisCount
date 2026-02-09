@@ -2,19 +2,14 @@ module Logic.GenVC where
 
 import Program.Syntax
 import qualified Logic.Syntax as L
-import Solver.Solver (verify)
 
-
-genVCs :: HoareTriple -> IO ()
+genVCs :: HoareTriple -> [L.BExpr]
 genVCs (HoareTriple p (Seq cs) q) = genRSeq p (reverse cs) q
 genVCs _ = error "Command isn't a Sequence"
 
-genRSeq :: L.BExpr -> [Command] -> L.BExpr -> IO ()
+genRSeq :: L.BExpr -> [Command] -> L.BExpr -> [L.BExpr]
 
-genRSeq p [] q = do
-    _ <- putStrLn ("hy: " ++ show p ++ "\nth: " ++ show q)
-    res <- verify p q
-    print res
+genRSeq p [] q = [L.Imp p q]
 
 genRSeq p (c:cs) q = do
     case c of
@@ -31,19 +26,13 @@ genRSeq p (c:cs) q = do
         If cond c1 mc2 ->
             let be = makeLogicBool cond
             in case mc2 of
-                (Just c2) -> do
-                    genRSeq p (c1:cs) (L.Imp be q)
-                    genRSeq p (c2:cs) (L.Imp (L.Not be) q)
-                Nothing -> do
-                    genRSeq p (c1:cs) (L.Imp be q)
-                    genRSeq p cs (L.Imp (L.Not be) q)
+                (Just c2) -> genRSeq p (c1:cs) (L.Imp be q) ++ genRSeq p (c2:cs) (L.Imp (L.Not be) q)
+                Nothing -> genRSeq p (c1:cs) (L.Imp be q) ++ genRSeq p cs (L.Imp (L.Not be) q)
 
-        -- There's also a possible check that ((lc and assert) com assert) is valid, but this seems kinda useless
-        -- as it doesn't guarantee that the invariant is valid - TODO: not sure if true
-        While cond assert _ -> do
-            let be = makeLogicBool cond
-            genRSeq p cs assert
-            genRSeq (L.And assert (L.Not be)) [] q
+-- TODO: does the second check on the invariant guarantee correctness?
+        While cond assert com -> genRSeq p cs assert ++ genRSeq (L.And be assert) [com] assert ++ genRSeq (L.And assert (L.Not be)) [] q
+            where
+              be = makeLogicBool cond
 
         Seq s -> genRSeq p (reverse s ++ cs) q
 

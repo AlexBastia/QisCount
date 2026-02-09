@@ -24,7 +24,6 @@ pBTerm = choice
     ]
 
 pComparison :: Parser Expr
--- Possibile bug: mi sa che se le AExpr sono fra parentesi non contano, proverei a usare makeExprParser lowkey
 pComparison = do
     left <- pAExpr
     op <- pCOpName
