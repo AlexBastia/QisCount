@@ -14,7 +14,7 @@ of the proof attempt is returned.
 
 module Solver.Solver where
 
-import Logic.Syntax
+import Expression.Syntax
 
 import Control.Monad.State
 import Data.SBV
@@ -97,7 +97,7 @@ evalQExpr (QIde ide) = getSymQC ide
 evalQExpr (Compose q1 q2) = do
   sq1 <- evalQExpr q1
   sq2 <- evalQExpr q2
-  return $ SQC (sGates sq1 L.++ sGates sq2) (sQb sq1 `smax` sQb sq2) (sCb sq1 `smax` sQb sq2)
+  return $ SQC (sGates sq1 L.++ sGates sq2) (sQb sq1 `smax` sQb sq2) (sCb sq1 `smax` sCb sq2)
 
 evalQExpr (QF1 ADQ qc a) = do
   sq <- evalQExpr qc
@@ -127,14 +127,14 @@ evalQExpr (QF2 n qc b1 b2) = do
 
 -- | Returns corresponding symbolic version of a Logic Quantum Gate.
 matchGate :: QFname -> SGateName
-matchGate (M Logic.Syntax.H) = sH
-matchGate (M Logic.Syntax.X) = sX
-matchGate (M Logic.Syntax.ADQ) = error "ADQ is not a quantum gate"
-matchGate (M Logic.Syntax.ADB) = error "ADB is not a quantum gate"
+matchGate (M Expression.Syntax.H) = sH
+matchGate (M Expression.Syntax.X) = sX
+matchGate (M Expression.Syntax.ADQ) = error "ADQ is not a quantum gate"
+matchGate (M Expression.Syntax.ADB) = error "ADB is not a quantum gate"
 
-matchGate (B Logic.Syntax.CX) = sCX
-matchGate (B Logic.Syntax.RX) = sRX
-matchGate (B Logic.Syntax.MES) = sMEAS
+matchGate (B Expression.Syntax.CX) = sCX
+matchGate (B Expression.Syntax.RX) = sRX
+matchGate (B Expression.Syntax.MES) = sMEAS
 
 -- 2. Boolean Expressions
 getSymBool :: String -> EvalM SBool
@@ -164,7 +164,7 @@ evalBExpr (Comparison op a b) = do
 evalBExpr (Not a) = do
   sa <- evalBExpr a
   return (sNot sa)
-evalBExpr (Logic.Syntax.And a b) = do
+evalBExpr (Expression.Syntax.And a b) = do
   sa <- evalBExpr a
   sb <- evalBExpr b
   return (sa .&& sb)
@@ -199,7 +199,7 @@ evalAExpr (BinOp op a b) = do
     Add -> return (sa + sb)
     Sub -> return (sa - sb)
     Mult -> return (sa * sb)
-    Div -> return $ ite (sb ./= 0) (sa `sDiv` sb) (error "Possible division by 0.")
+    Div -> return (sa `sDiv` sb)  -- TODO: if sb is 0, the result is 0; is this an issue?
 evalAExpr (MonOp op a) = do
   sa <- evalAExpr a
   case op of
@@ -259,7 +259,10 @@ verifyVCs = map verifyVC
     verifyVC :: BExpr -> IO ThmResult
     verifyVC be = do
       putStrLn $ "VC: " ++ show be
-      prove $ evalVC be
+      res <- prove $ evalVC be
+      print res
+      putStrLn "\n" 
+      return res
 
 evalVC :: BExpr -> Symbolic SBool
 evalVC be = do

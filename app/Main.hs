@@ -9,7 +9,7 @@ Coordinates the parser, the VC generator and the solver in order to output the t
 module Main (main) where
 
 import Program.Parser
-import Logic.GenVC
+import Solver.GenVC
 import Solver.Solver
 
 import System.Environment
@@ -30,7 +30,7 @@ mainAct [filepath] = do
         Left bundle -> putStrLn (errorBundlePretty bundle)
         Right out -> do
           let vcs = genVCs out
-          results <- sequence $ verifyVCs vcs
-          print results
+          sequence_ $ verifyVCs vcs
+          putStrLn "end" 
 
 mainAct _ = putStrLn "Too many arguments."

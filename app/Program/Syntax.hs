@@ -8,7 +8,7 @@ describes the format of a complete Hoare triple.
 
 module Program.Syntax where
 
-import qualified Logic.Syntax as L
+import Expression.Syntax (AExpr, BExpr, QExpr, QF1name, QF2name)
 
 -- Boolean and Integer Expressions
 type Vname = String
@@ -16,21 +16,8 @@ data Type =
   TyBool | TyInt | TyQC
   deriving (Show, Eq)
 
-data Expr
-    = BoolLit Bool
-    | NumLit Integer
-    | Ide Vname Type
-    | BinOp Op2 Expr Expr 
-    | MonOp Op1 Expr
-    | QC Expr Expr
-    deriving (Show)
-
-data Op2
-    = Add | Sub | Mult | Div | And | Or | Eq | Ne | Lt | Gt | Ge | Le
-    deriving (Show)
-
-data Op1
-    = Not | Neg | Pos
+data Expr =
+    BE BExpr | AE AExpr | QE QExpr
     deriving (Show)
 
 rwords :: [String]
@@ -38,33 +25,25 @@ rwords = ["if", "then", "else", "while", "True", "False", "QuantumCircuit"]
 
 -- Commands
 data Command
-    = Assign Vname Expr Type
+    = Assign Vname Expr
     | Seq [Command]
-    | If Expr Command (Maybe Command)
-    | While Expr L.BExpr Command
+    | If BExpr Command (Maybe Command)
+    | While BExpr BExpr Command
     | UnitOp Vname Gate
-    | Measure Vname Expr Expr
-    | Compose Vname Expr
-    | AddQ Vname Expr
-    | AddB Vname Expr
+    | Measure Vname AExpr AExpr
+    | Compose Vname QExpr
+    | AddQ Vname AExpr
+    | AddB Vname AExpr
     deriving (Show)
 
 data Gate
-    = MonGate Gate1 Expr
-    | BinGate Gate2 Expr Expr
-    deriving (Show)
-
-data Gate1
-    = H | X
-    deriving (Show)
-
-data Gate2
-    = CX | RX
+    = MonGate QF1name AExpr
+    | BinGate QF2name AExpr AExpr
     deriving (Show)
 
 data HoareTriple = HoareTriple
-    { htP :: L.BExpr
+    { htP :: BExpr
     , htC :: Command
-    , htQ :: L.BExpr
+    , htQ :: BExpr
     }
     deriving(Show)

@@ -1,17 +1,17 @@
 {-| 
 Module      : Logic.Syntax
-Description : Types for logic formulas
+Description : Types for expressions.
 
-Defines the AST created from the parsing of Hoare logic formulas (precondition, postcondition and assertions). 
+Defines the AST created from the parsing of expressions (boolean, arithmetic, quantum circuits). 
 -}
 
-module Logic.Syntax where
+module Expression.Syntax where
 
 -- Boolean Value
 data BExpr
     = BoolLit Bool
     | BIde String
-    | Comparison COp AExpr AExpr -- In future could be defined on Circ type as well
+    | Comparison COp AExpr AExpr
     | And BExpr BExpr
     | Or BExpr BExpr
     | Imp BExpr BExpr

@@ -10,6 +10,7 @@ Also includes helpers for brackets and the definition of the `Parser` type that 
 module Program.Lexer where
 
 import Program.Syntax
+import Expression.Syntax
 
 import Data.Void (Void)
 import Text.Megaparsec
@@ -52,13 +53,13 @@ identifier = (lexeme . try) (par >>= check)
                 else return x
 
 -- | Gate Name parser
-monGate :: Parser Gate1
+monGate :: Parser QF1name
 monGate = choice
     [ H <$ symbol "H"
     , X <$ symbol "X"
     ]
 
-binGate :: Parser Gate2
+binGate :: Parser QF2name
 binGate = choice
     [ CX <$ symbol "CX"
     , RX <$ symbol "RX"

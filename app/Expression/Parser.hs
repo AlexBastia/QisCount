@@ -1,14 +1,14 @@
 {-| 
 Module      : Logic.Parser
-Description : Parses logic formulas
+Description : Parses expressions.
 
-Implements parsers for logical expressions (preconditions, postconditions and assertions). Uses
+Implements parsers for expressions (boolean, arithmetic, quantum circuits). Uses
 the same parser monad transformer and state map as the program parser.
 -}
 
-module Logic.Parser where
+module Expression.Parser where
 
-import Logic.Syntax
+import Expression.Syntax
 import Program.Lexer
 import qualified Program.Syntax as P
 

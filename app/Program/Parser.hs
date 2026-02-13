@@ -2,98 +2,20 @@
 Module      : Program.Parser
 Description : Parses the program.
 
-Includes all parsers for the program part of the triple and the general 
-complete parser for the whole program.
+Includes parsers for Proto-Qiskit commands built using the expression parsers and defines
+the parser for the entire triple. 
 -}
 
-{-# LANGUAGE TupleSections #-}
 module Program.Parser where
 
 import Program.Syntax
 import Program.Lexer
-import qualified Logic.Parser as L
+import Expression.Parser (pBExpr, pAExpr, pQExpr)
 
-import Control.Monad.Combinators.Expr
 import Data.Void (Void)
 import Text.Megaparsec
 import qualified Data.Map as M
 import qualified Control.Monad.State as S
-
--- Boolean Expression Parser
-pBExpr :: Parser Expr
-pBExpr = makeExprParser pBTerm bOpTable
-
-pBTerm :: Parser Expr
-pBTerm = choice
-    [ try pComparison
-    , BoolLit <$> (True <$ symbol "True" <|> False <$ symbol "False")
-    , pIde TyBool
-    , parens pBExpr
-    ]
-
-pComparison :: Parser Expr
-pComparison = do
-    left <- pAExpr
-    op <- pCOpName
-    BinOp op left <$> pAExpr
-
-pCOpName :: Parser Op2
-pCOpName = choice
-    [ Eq <$ symbol "=="
-    , Ne <$ symbol "!="
-    , Ge <$ symbol ">="
-    , Le <$ symbol "<="
-    , Gt <$ symbol ">"
-    , Lt <$ symbol "<"
-    ]
-
-bOpTable :: [[Operator Parser Expr]]
-bOpTable =
-    [ [ Prefix (MonOp Not <$ symbol "!") ]
-    , [ InfixL (BinOp And <$ symbol "&&") ]
-    , [ InfixL (BinOp Or <$ symbol "||") ]
-    ]
-
--- Arithmetic Expression Parser
-pAExpr :: Parser Expr
-pAExpr = makeExprParser pATerm aOpTable
-
-pATerm :: Parser Expr
-pATerm = choice
-    [ pIde TyInt
-    , NumLit <$> integer
-    , parens pAExpr
-    ]
-
-aOpTable :: [[Operator Parser Expr]]
-aOpTable =
-    [ [ Prefix (MonOp Neg <$ symbol "-")
-      , Prefix (MonOp Pos <$ symbol "+")
-      ]
-    , [ InfixL (BinOp Mult <$ symbol "*")
-      , InfixL (BinOp Div <$ symbol "/")
-      ]
-    , [ InfixL (BinOp Add <$ symbol "+")
-      , InfixL (BinOp Sub <$ symbol "-")
-      ] ]
-
-pIde :: Type -> Parser Expr
-pIde exprType = do
-    ide <- identifier
-    mt <- S.gets (M.lookup ide)
-    case mt of
-        Just t -> 
-            if t == exprType then return $ Ide ide t
-            else fail ("Variable '" ++ show ide ++ "' of type '" ++ show t ++ "' doesn't match type '" ++ show exprType ++ "'")
-        Nothing -> error ("Undefined variable: " ++ show ide)
-
--- Quantum Circuit Parser
-pQExpr :: Parser Expr
-pQExpr = choice
-    [ pIde TyQC
-    , symbol "QuantumCircuit" *> parens (QC <$> pAExpr <*> (symbol "," *> pAExpr))
-    ]
-
 
 -- Command Parser
 
@@ -119,12 +41,18 @@ pStmt = do
 pAssign :: Vname -> Parser Command
 pAssign l = do
     (e,t) <- choice
-        [ (, TyQC) <$> try pQExpr -- TODO: Non e' bellissimo, ci sono altri modi senza il try?
-        , (, TyBool) <$> try pBExpr
-        , (, TyInt) <$> pAExpr
+        [ (\e -> (QE e, TyQC)) <$> try pQExpr -- TODO: Can we avoid using try?
+        , (\e -> (BE e, TyBool)) <$> try pBExpr
+        , (\e -> (AE e, TyInt)) <$> pAExpr
         ]
-    S.modify (M.insert l t)
-    return $ Assign l e t
+    mt <- S.gets (M.lookup l)
+    case mt of
+        Just a
+            | t == a -> return $ Assign l e
+            | otherwise -> error $ "Variable " ++ show l ++ " of type " ++ show a ++ " can't be assigned value of type " ++ show t
+        Nothing -> do
+            S.modify (M.insert l t)
+            return $ Assign l e
 
 pMethod :: Vname -> Parser Command
 pMethod l = choice
@@ -155,7 +83,7 @@ pWhile = do
     cond <- pBExpr
     _ <- symbol ":"
     _ <- symbol "["
-    annot <- L.pBExpr
+    annot <- pBExpr
     _ <- symbol "]"
     While cond annot <$> pCommand
 
@@ -165,11 +93,11 @@ pWhile = do
 pProgram :: Parser HoareTriple
 pProgram = do
     _ <- symbol "["
-    pre <- L.pBExpr
+    pre <- pBExpr
     _ <- symbol "]"
     com <- pBlock
     _ <- symbol "["
-    post <- L.pBExpr
+    post <- pBExpr
     _ <- symbol "]"
     return $ HoareTriple pre com post
 
