@@ -1,12 +1,16 @@
 [True]
 {
-   qc <- QuantumCircuit(3, 3);
-   qc.H(0);
-   qc.CX(0, 1);
-   qc.H(0);
-   qc.X(2);
-   qc.CX(1,2);
-   qc.measure(0,0);
-   qc.measure(1,1);
+  i <- 0;
+  qc <- QuantumCircuit(n, 0);
+  while i != n: [gatecount(qc) == i*n]
+  {
+    j <- 0;
+    while j != n: [gatecount(qc) == j + (i * n)]
+    {
+      qc.H(i);
+      j <- j + 1;
+    }
+    i <- i + 1;
+  }
 }
-[gatecount(qc) == 7]
+[gatecount(qc) == n * n]
