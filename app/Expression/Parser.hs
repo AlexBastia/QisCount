@@ -99,6 +99,7 @@ aOpTable =
       ]
     , [ InfixL (BinOp Mult <$ symbol "*")
       , InfixL (BinOp Div <$ symbol "/")
+      , InfixL (BinOp Mod <$ symbol "%")
       ]
     , [ InfixL (BinOp Add <$ symbol "+")
       , InfixL (BinOp Sub <$ symbol "-")

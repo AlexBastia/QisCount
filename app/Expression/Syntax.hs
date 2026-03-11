@@ -53,13 +53,14 @@ instance Show AExpr where
     show (QOp op q as) = show op ++ "(" ++ show q ++ ", " ++ show as ++ ")"
 
 data Op2
-    = Add | Sub | Mult | Div 
+    = Add | Sub | Mult | Div | Mod
 
 instance Show Op2 where
     show Add = " + "
     show Sub = " - "
     show Mult = " * "
     show Div = " / "
+    show Mod = " % "
 
 data Op1
     = Neg | Pos
@@ -92,7 +93,7 @@ data QF1name
     deriving(Show)
 
 data QF2name
-    = CX | RX | MES
+    = CX | RX | CNOT | MES
     deriving(Show)
 
 data QFname

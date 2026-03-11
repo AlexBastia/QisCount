@@ -26,9 +26,10 @@ import qualified Data.Map as M
 -- * Symbolic Quantum Circuit --
 --------------------------------
 
+-- TODO: any way to avoid redifining gate names??
 -- | Note that the `measure` operation also counts as a quantum gate.
 data GateName
-  = H | X | CX | RX | MEAS
+  = H | X | CX | CNOT | RX | MEAS
 mkSymbolic [''GateName]
 
 {-| To simplify the translation into a symbolic value, every gate
@@ -134,6 +135,7 @@ matchGate (M Expression.Syntax.ADB) = error "ADB is not a quantum gate"
 
 matchGate (B Expression.Syntax.CX) = sCX
 matchGate (B Expression.Syntax.RX) = sRX
+matchGate (B Expression.Syntax.CNOT) = sCNOT
 matchGate (B Expression.Syntax.MES) = sMEAS
 
 -- 2. Boolean Expressions
@@ -199,6 +201,7 @@ evalAExpr (BinOp op a b) = do
     Add -> return (sa + sb)
     Sub -> return (sa - sb)
     Mult -> return (sa * sb)
+    Mod -> return (sa `sMod` sb)
     Div -> return (sa `sDiv` sb)  -- TODO: if sb is 0, the result is 0; is this an issue?
 evalAExpr (MonOp op a) = do
   sa <- evalAExpr a

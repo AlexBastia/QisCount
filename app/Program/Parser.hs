@@ -72,9 +72,9 @@ pIf :: Parser Command
 pIf = do
     _ <- symbol "if"
     cond <- pBExpr
-    _ <- symbol "then"
+    _ <- symbol ":"
     thenCom <- pCommand
-    elseCom <- optional (symbol "else" *> pCommand)
+    elseCom <- optional (symbol "else" *> symbol ":" *> pCommand)
     return (If cond thenCom elseCom)
 
 pWhile :: Parser Command
