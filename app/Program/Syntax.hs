@@ -8,7 +8,7 @@ describes the format of a complete Hoare triple.
 
 module Program.Syntax where
 
-import Expression.Syntax (AExpr, BExpr, QExpr, QF1name, QF2name)
+import Expression.Syntax (AExpr, BExpr, QExpr, QF1name, QF2name, COp)
 
 -- Boolean and Integer Expressions
 type Vname = String
@@ -29,7 +29,7 @@ data Command
     | Seq [Command]
     | If BExpr Command (Maybe Command)
     | While BExpr BExpr Command
-    | UnitOp Vname Gate
+    | UnitOp Vname Gate [QbitAssertion]
     | Measure Vname AExpr AExpr
     | Compose Vname QExpr
     | AddQ Vname AExpr
@@ -40,6 +40,13 @@ data Gate
     = MonGate QF1name AExpr
     | BinGate QF2name AExpr AExpr
     deriving (Show)
+
+data QbitAssertion = QbAssertion Integer AssertionFunctionRetVal deriving (Show, Eq) 
+
+data AssertionFunctionRetVal
+    = AFQb Integer
+    | AFState Integer
+    deriving (Show, Eq)
 
 data HoareTriple = HoareTriple
     { htP :: BExpr

@@ -56,7 +56,7 @@ pAssign l = do
 
 pMethod :: Vname -> Parser Command
 pMethod l = choice
-    [ UnitOp l <$> pGate
+    [ UnitOp l <$> pGate <*> (symbol "[" *> pQbAssertion `sepBy` symbol "," <* symbol "]")
     , symbol "measure" *> parens (Measure l <$> pAExpr <*> (symbol "," *> pAExpr))
     , symbol "compose" *> parens (Compose l <$> pQExpr)
     , symbol "addQbits" *> parens (AddQ l <$> pAExpr)
@@ -68,6 +68,28 @@ pGate = choice
     [ MonGate <$> monGate <*> parens pAExpr
     , BinGate <$> binGate <*> (symbol "(" *> pAExpr) <*> (symbol "," *> pAExpr <* symbol ")")
     ]
+
+
+pQbAssertion :: Parser QbitAssertion
+pQbAssertion = do
+    l <- pQb
+    _ <- symbol "=="
+    r <- pAFRetVal
+    return $ QbAssertion l r
+
+pQb :: Parser Integer
+pQb = do
+    _ <- symbol "q("
+    qbIde <- integer
+    _ <- symbol ")"
+    return qbIde
+
+pAFRetVal :: Parser AssertionFunctionRetVal
+pAFRetVal = choice
+    [ AFState <$> integer
+    , AFQb <$> pQb ]
+
+
 pIf :: Parser Command
 pIf = do
     _ <- symbol "if"

@@ -90,11 +90,11 @@ instance Show QExpr where
 
 data QF1name
     = H | X | ADQ | ADB
-    deriving(Show)
+    deriving(Show, Eq, Enum, Ord)
 
 data QF2name
     = CX | RX | CNOT | MES
-    deriving(Show)
+    deriving(Show, Eq, Enum, Ord)
 
 data QFname
     = M QF1name | B QF2name

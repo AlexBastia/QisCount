@@ -11,6 +11,8 @@ module Solver.GenVC where
 import Program.Syntax
 import Expression.Syntax
 
+import qualified Data.Map.Strict as Map
+
 -- | Generates array of VCs for a given Hoare triple
 genVCs :: HoareTriple -> [BExpr]
 genVCs (HoareTriple p (Seq cs) q) = genRSeq p (reverse cs) q
@@ -29,11 +31,20 @@ genRSeq p [] q = [Imp p q]
 genRSeq p (c:cs) q = do
     case c of
         Assign ide e -> genRSeq p cs (subBool q ide e)
-        UnitOp ide (MonGate g e) -> 
+
+        UnitOp ide (MonGate g e) [] ->
             genRSeq p cs (subBool q ide (QE $ QF1 g (QIde ide) e))
-        UnitOp ide (BinGate g e1 e2) -> 
+        UnitOp ide (MonGate g e) (a:as)
+            | checkTrivial (MonGate g e) (a:as) -> genRSeq p cs q
+            | otherwise -> genRSeq p cs (subBool q ide (QE $ QF1 g (QIde ide) e))
+
+        UnitOp ide (BinGate g e1 e2) [] ->
             genRSeq p cs (subBool q ide (QE $ QF2 g (QIde ide) e1 e2))
-        Measure ide e1 e2 -> 
+        UnitOp ide (BinGate g e1 e2) (a:as)
+            | checkTrivial (BinGate g e1 e2) (a:as) -> genRSeq p cs q
+            | otherwise -> genRSeq p cs (subBool q ide (QE $ QF2 g (QIde ide) e1 e2))
+
+        Measure ide e1 e2 ->
             genRSeq p cs (subBool q ide (QE $ QF2 MES (QIde ide) e1 e2))
         Program.Syntax.Compose ide qc -> genRSeq p cs (subBool q ide (QE qc))
         AddQ ide e -> genRSeq p cs (subBool q ide (QE $ QF1 ADQ (QIde ide) e))
@@ -44,8 +55,8 @@ genRSeq p (c:cs) q = do
                 (Just c2) -> genRSeq p (c1:cs) (Imp cond q) ++ genRSeq p (c2:cs) (Imp (Not cond) q)
                 Nothing -> genRSeq p (c1:cs) (Imp cond q) ++ genRSeq p cs (Imp (Not cond) q)
 
-        While cond assert com -> 
-            genRSeq p cs assert ++ genRSeq (And cond assert) [com] assert ++ genRSeq (And assert (Not cond)) [] q
+        While cond assert com ->
+            genRSeq (And assert (Not cond)) [] q ++ genRSeq (And cond assert) [com] assert ++ genRSeq p cs assert
 
         Seq s -> genRSeq p (reverse s ++ cs) q
 
@@ -95,3 +106,41 @@ subQCirc e _ _ = e
 subAL :: [AExpr] -> String -> Expr -> [AExpr]
 subAL [] _ _ = []
 subAL (ae:aes) ide val = subArithm ae ide val : subAL aes ide val
+
+
+-----------------------------
+-- * Triviality Conditions --
+-----------------------------
+
+-- TODO: per ora funziona solo quando gli indici dei qbit sono interi (sia nelle assertion che nel codice)
+-- Potrebbe essere possibile generare un'implicazione logica che viene dimostrata dal solver, e se regge la TC e' valida.
+-- In questo modo sarebbe possibile usare espressioni aritmetiche e VARIABILI !!!. Le variabili sono abbastanza importanti,
+-- si potrebbero fare manualmente senza ricorrere a Solver volendo come prossimo step.
+
+-- TODO: per i gate unitary che ci stanno ora non penso ci siano TC 
+unitaryTCs :: Map.Map QF1name (Integer -> QbitAssertion)
+unitaryTCs = Map.empty
+
+binaryTCs :: Map.Map QF2name (Integer -> Integer -> QbitAssertion)
+binaryTCs = Map.fromList
+    [ (CNOT, \e1 _ -> QbAssertion e1 (AFState 0)) ]
+
+checkTrivial :: Gate -> [QbitAssertion] -> Bool
+checkTrivial _ [] = False
+checkTrivial (MonGate g (NumLit i)) as = case Map.lookup g unitaryTCs of
+    Just tc -> findAssertion (tc i) as
+    Nothing -> False
+checkTrivial (MonGate _ _) _ = undefined
+
+checkTrivial (BinGate g (NumLit i) (NumLit j)) as = case Map.lookup g binaryTCs of
+    Just tc -> findAssertion (tc i j) as
+    Nothing -> False
+checkTrivial (BinGate _ _ _) _ = undefined
+
+checkTrivial _ _ = undefined
+
+findAssertion :: QbitAssertion -> [QbitAssertion] -> Bool
+findAssertion _ [] = False
+findAssertion a1 (a:as)
+    | a1 == a = True
+    | otherwise = findAssertion a1 as

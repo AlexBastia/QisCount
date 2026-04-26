@@ -1,3 +1,2 @@
 - Make gates more general (allow parametrization and arbitrary arity), or choose a gate set and stick with it
 - If necessary add Real numbers
-- When substituting should brackets be added?
