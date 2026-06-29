@@ -29,7 +29,7 @@ import qualified Data.Map as M
 -- TODO: any way to avoid redifining gate names??
 -- | Note that the `measure` operation also counts as a quantum gate.
 data GateName
-  = H | X | CX | CNOT | RX | MEAS
+  = H | X | CNOT | SWAP | CR | MEAS
 mkSymbolic [''GateName]
 
 {-| To simplify the translation into a symbolic value, every gate
@@ -133,8 +133,8 @@ matchGate (M Expression.Syntax.X) = sX
 matchGate (M Expression.Syntax.ADQ) = error "ADQ is not a quantum gate"
 matchGate (M Expression.Syntax.ADB) = error "ADB is not a quantum gate"
 
-matchGate (B Expression.Syntax.CX) = sCX
-matchGate (B Expression.Syntax.RX) = sRX
+matchGate (B Expression.Syntax.CR) = sCR
+matchGate (B Expression.Syntax.SWAP) = sSWAP
 matchGate (B Expression.Syntax.CNOT) = sCNOT
 matchGate (B Expression.Syntax.MES) = sMEAS
 
@@ -233,13 +233,13 @@ calcDepth gates qb = finalDepth
 
               d1 = readArray currentAcc q1
               d2 = readArray currentAcc q2
-            
-              isTwoQubit = op .== sCX  .|| op .== sRX
-            
+
+              isTwoQubit = op .== sSWAP  .|| op .== sCR .|| op .== sCNOT
+
               maxInputDepth = ite isTwoQubit (smax d1 d2) d1
               newGateDepth  = maxInputDepth + 1
-            
-              acc1 = writeArray currentAcc q1 newGateDepth 
+
+              acc1 = writeArray currentAcc q1 newGateDepth
               acc2 = writeArray acc1 q2 newGateDepth
           in
               ite isTwoQubit acc2 acc1
@@ -254,18 +254,12 @@ calcDepth gates qb = finalDepth
 -- * Main Solver --
 -------------------
 
-{-| Evaluates and proves the list of Logic Boolean Expressions.
-Returns the result of each verification. -}
-verifyVCs :: [BExpr] -> [IO ThmResult]
-verifyVCs = map verifyVC
-  where
-    verifyVC :: BExpr -> IO ThmResult
-    verifyVC be = do
-      putStrLn $ "VC: " ++ show be
-      res <- prove $ evalVC be
-      print res
-      putStrLn "\n" 
-      return res
+{-| Evaluates and proves the given Logic Boolean Expressions.
+-}
+verifyVC :: BExpr -> IO ThmResult
+verifyVC be = do
+  putStrLn $ "VC: " ++ show be
+  prove $ evalVC be
 
 evalVC :: BExpr -> Symbolic SBool
 evalVC be = do

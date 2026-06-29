@@ -61,9 +61,9 @@ monGate = choice
 
 binGate :: Parser QF2name
 binGate = choice
-    [ CX <$ symbol "CX"
-    , RX <$ symbol "RX"
+    [ CR <$ symbol "CR"
     , CNOT <$ symbol "CNOT"
+    , SWAP <$ symbol "SWAP"
     ]
     
 parens :: Parser a -> Parser a

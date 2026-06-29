@@ -93,7 +93,7 @@ data QF1name
     deriving(Show, Eq, Enum, Ord)
 
 data QF2name
-    = CX | RX | CNOT | MES
+    = SWAP | CR | CNOT | MES
     deriving(Show, Eq, Enum, Ord)
 
 data QFname

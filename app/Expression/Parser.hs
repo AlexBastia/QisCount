@@ -24,7 +24,7 @@ pBExpr = makeExprParser pBTerm bOpTable
 pBTerm :: Parser BExpr
 pBTerm = choice
     [ try pComparison
-    , BoolLit <$> (True <$ symbol "True" <|> False <$ symbol "False")
+    , BoolLit <$> (True <$ symbol "true" <|> False <$ symbol "false")
     , pBIde
     , parens pBExpr
     ]
@@ -133,19 +133,16 @@ pQF1Name = choice
     , ADB <$ symbol "addBits"
     ]
 
-pQF2Name :: Parser QF2name
-pQF2Name = choice
-    [ symbol "append" *> pGname2
-    , MES <$ symbol "measure"
-    ]
-
 pGname1 :: Parser QF1name
 pGname1 = choice
     [ H <$ symbol "H"
     , X <$ symbol "X"
     ]
 
-pGname2 :: Parser QF2name
-pGname2 = choice
-    [ RX <$ symbol "RX"
-    , CX <$ symbol "CX"]
+pQF2Name :: Parser QF2name
+pQF2Name = choice
+    [ CR <$ symbol "CR"
+    , CNOT <$ symbol "CNOT"
+    , SWAP <$ symbol "SWAP"
+    , MES <$ symbol "measure"
+    ]

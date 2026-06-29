@@ -29,8 +29,8 @@ mainAct [filepath] = do
   case parseProgram filepath input of
         Left bundle -> putStrLn (errorBundlePretty bundle)
         Right out -> do
-          let vcs = genVCs out
-          sequence_ $ verifyVCs vcs
-          putStrLn "end" 
+          vc <- genVC out
+          result <- verifyVC vc
+          print result
 
 mainAct _ = putStrLn "Too many arguments."
