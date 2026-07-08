@@ -118,6 +118,9 @@ evalQExpr (QF1 n qc b) = do
   let sg = T.tuple (sOpName, sb, noSecondOperand)
   return $ SQC (sg L..: sGates sq) (sQb sq) (sCb sq)
 
+evalQExpr (QF2 MES qc _ _) = do
+  evalQExpr qc
+
 evalQExpr (QF2 n qc b1 b2) = do
   sq <- evalQExpr qc
   let sOpName = matchGate (B n)
