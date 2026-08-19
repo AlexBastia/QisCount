@@ -7,17 +7,25 @@ Defines the AST created from the parsing of expressions (boolean, arithmetic, qu
 
 module Expression.Syntax where
 
+import Data.Void (Void)
+
+data Expr =
+    BE BExpr| AE AExpr | QE QExpr
+    deriving (Show)
+
 -- Boolean Value
-data BExpr
+type BExpr = BooleanFormula AExpr
+
+data BooleanFormula a
     = BoolLit Bool
     | BIde String
-    | Comparison COp AExpr AExpr
-    | And BExpr BExpr
-    | Or BExpr BExpr
-    | Imp BExpr BExpr
-    | Not BExpr
+    | Comparison COp a a
+    | And (BooleanFormula a) (BooleanFormula a)
+    | Or (BooleanFormula a) (BooleanFormula a)
+    | Imp (BooleanFormula a) (BooleanFormula a)
+    | Not (BooleanFormula a)
 
-instance Show BExpr where
+instance Show a => Show (BooleanFormula a) where
     show (BoolLit b) = show b
     show (BIde i) = show i
     show (Comparison op a b) = show a ++ show op ++ show b
@@ -38,19 +46,21 @@ instance Show COp where
     show Le = " <= "
 
 -- Integer Value
-data AExpr
+type AExpr = ArithmeticFormula Void
+
+data ArithmeticFormula ext
     = NumLit Integer
     | AIde String
-    | BinOp Op2 AExpr AExpr 
-    | MonOp Op1 AExpr
-    | QOp QOpName QExpr [AExpr]
+    | BinOp Op2 (ArithmeticFormula ext) (ArithmeticFormula ext) 
+    | MonOp Op1 (ArithmeticFormula ext)
+    | Ext ext
 
-instance Show AExpr where
+instance Show ext => Show (ArithmeticFormula ext) where
     show (NumLit a) = show a
     show (AIde i) = show i
     show (BinOp op a b) = show a ++ show op ++ show b
     show (MonOp op a) = show op ++ show a
-    show (QOp op q as) = show op ++ "(" ++ show q ++ ", " ++ show as ++ ")"
+    show (Ext e) = show e
 
 data Op2
     = Add | Sub | Mult | Div | Mod
@@ -69,33 +79,10 @@ instance Show Op1 where
     show Neg = "-"
     show Pos = "+"
 
-data QOpName
-    = Wid | GC | Dep
-    deriving(Show)
-
 -- QuantumCircuit Value
 data QExpr
     = QC AExpr AExpr
     | QIde String
-    | Compose QExpr QExpr
-    | QF1 QF1name QExpr AExpr
-    | QF2 QF2name QExpr AExpr AExpr
-
 instance Show QExpr where
     show (QC a b) = "qc(" ++ show a ++ ", " ++ show b ++ ")"
-    show (QIde i) = show i
-    show (Compose a b) = show a ++ " ++ " ++ show b
-    show (QF1 op q a) = show op ++ "(" ++ show q ++ ", " ++ show a ++ ")" 
-    show (QF2 op q a b) = show op ++ "(" ++ show q ++ ", " ++ show a ++ ", " ++ show b ++ ")" 
-
-data QF1name
-    = H | X | ADQ | ADB
-    deriving(Show, Eq, Enum, Ord)
-
-data QF2name
-    = SWAP | CR | CNOT | MES
-    deriving(Show, Eq, Enum, Ord)
-
-data QFname
-    = M QF1name | B QF2name
-    deriving(Show)
+    show (QIde ide) = show ide

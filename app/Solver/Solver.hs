@@ -14,13 +14,14 @@ of the proof attempt is returned.
 
 module Solver.Solver where
 
-import Expression.Syntax
-
 import Control.Monad.State
 import Data.SBV
 import qualified Data.SBV.List as L
 import qualified Data.SBV.Tuple as T
 import qualified Data.Map as M
+import AssertLogic.Syntax (ExtendedQExpr (..), Assertion, ExtendedAExpr, QOpExt (..))
+import Program.QuantumGates (QuantumGate(..), QGname (..))
+import Expression.Syntax (BooleanFormula(..), COp (..), ArithmeticFormula (..), Op2 (..), Op1 (..))
 
 --------------------------------
 -- * Symbolic Quantum Circuit --
@@ -86,7 +87,7 @@ getSymQC ide = do
             put $ M.insert ide (VQC s) env
             return s
 
-evalQExpr :: QExpr -> EvalM SQC
+evalQExpr :: ExtendedQExpr -> EvalM SQC
 
 evalQExpr (QC qb cb) = do
   sqb <- evalAExpr qb
@@ -100,17 +101,17 @@ evalQExpr (Compose q1 q2) = do
   sq2 <- evalQExpr q2
   return $ SQC (sGates sq1 L.++ sGates sq2) (sQb sq1 `smax` sQb sq2) (sCb sq1 `smax` sCb sq2)
 
-evalQExpr (QF1 ADQ qc a) = do
+evalQExpr (AddQ qc a) = do
   sq <- evalQExpr qc
   sa <- evalAExpr a
   return $ SQC (sGates sq) (sQb sq + sa) (sCb sq)
 
-evalQExpr (QF1 ADB qc a) = do
+evalQExpr (AddB qc a) = do
   sq <- evalQExpr qc
   sa <- evalAExpr a
   return $ SQC (sGates sq) (sQb sq) (sCb sq + sa)
 
-evalQExpr (QF1 n qc b) = do
+evalQExpr (UnitOp qc (QG1 n b)) = do
   sq <- evalQExpr qc
   let sOpName = matchGate (M n)
   sb <- evalAExpr b
@@ -118,10 +119,10 @@ evalQExpr (QF1 n qc b) = do
   let sg = T.tuple (sOpName, sb, noSecondOperand)
   return $ SQC (sg L..: sGates sq) (sQb sq) (sCb sq)
 
-evalQExpr (QF2 MES qc _ _) = do
+evalQExpr (Measure qc _ _) = do
   evalQExpr qc
 
-evalQExpr (QF2 n qc b1 b2) = do
+evalQExpr (UnitOp qc (QG2 n b1 b2)) = do
   sq <- evalQExpr qc
   let sOpName = matchGate (B n)
   sb1 <- evalAExpr b1
@@ -130,16 +131,13 @@ evalQExpr (QF2 n qc b1 b2) = do
   return $ SQC (sg L..: sGates sq) (sQb sq) (sCb sq)
 
 -- | Returns corresponding symbolic version of a Logic Quantum Gate.
-matchGate :: QFname -> SGateName
-matchGate (M Expression.Syntax.H) = sH
-matchGate (M Expression.Syntax.X) = sX
-matchGate (M Expression.Syntax.ADQ) = error "ADQ is not a quantum gate"
-matchGate (M Expression.Syntax.ADB) = error "ADB is not a quantum gate"
+matchGate :: QGname -> SGateName
+matchGate (G1 H) = sH
+matchGate (G1 X) = sX
 
-matchGate (B Expression.Syntax.CR) = sCR
-matchGate (B Expression.Syntax.SWAP) = sSWAP
-matchGate (B Expression.Syntax.CNOT) = sCNOT
-matchGate (B Expression.Syntax.MES) = sMEAS
+matchGate (G2 CR) = sCR
+matchGate (G2 SWAP) = sSWAP
+matchGate (G2 CNOT) = sCNOT
 
 -- 2. Boolean Expressions
 getSymBool :: String -> EvalM SBool
@@ -153,10 +151,10 @@ getSymBool ide = do
             put $ M.insert ide (VBool s) env
             return s
 
-evalBExpr :: BExpr -> EvalM SBool
-evalBExpr (BoolLit k) = return $ literal k
-evalBExpr (BIde ide) = getSymBool ide
-evalBExpr (Comparison op a b) = do
+evalAssertion :: Assertion -> EvalM SBool
+evalAssertion (BoolLit k) = return $ literal k
+evalAssertion (BIde ide) = getSymBool ide
+evalAssertion (Comparison op a b) = do
   sa <- evalAExpr a
   sb <- evalAExpr b
   case op of
@@ -166,20 +164,20 @@ evalBExpr (Comparison op a b) = do
     Le -> return (sa .<= sb)
     Gt -> return (sa .> sb)
     Lt -> return (sa .< sb)
-evalBExpr (Not a) = do
-  sa <- evalBExpr a
+evalAssertion (Not a) = do
+  sa <- evalAssertion a
   return (sNot sa)
-evalBExpr (Expression.Syntax.And a b) = do
-  sa <- evalBExpr a
-  sb <- evalBExpr b
+evalAssertion (Expression.Syntax.And a b) = do
+  sa <- evalAssertion a
+  sb <- evalAssertion b
   return (sa .&& sb)
-evalBExpr (Or a b) = do
-  sa <- evalBExpr a
-  sb <- evalBExpr b
+evalAssertion (Or a b) = do
+  sa <- evalAssertion a
+  sb <- evalAssertion b
   return (sa .|| sb)
-evalBExpr (Imp a b) = do
-  sa <- evalBExpr a
-  sb <- evalBExpr b
+evalAssertion (Imp a b) = do
+  sa <- evalAssertion a
+  sb <- evalAssertion b
   return (sa .=> sb)
 
 -- 3. Arithmetic Expression
@@ -194,7 +192,7 @@ getSymInt ide = do
             put $ M.insert ide (VInt s) env
             return s
 
-evalAExpr :: AExpr -> EvalM SInteger
+evalAExpr :: ExtendedAExpr -> EvalM SInteger
 evalAExpr (NumLit k) = return $ literal k
 evalAExpr (AIde ide) = getSymInt ide
 evalAExpr (BinOp op a b) = do
@@ -211,16 +209,16 @@ evalAExpr (MonOp op a) = do
   case op of
     Neg -> return (-sa)
     Pos -> return sa
-evalAExpr (QOp Dep qc [qb]) = do
+evalAExpr (Ext (Dep qc b)) = do
   sqc <- evalQExpr qc
-  sqb <- evalAExpr qb
+  sqb <- evalAExpr b
   return $ calcDepth (sGates sqc) sqb
-evalAExpr (QOp Dep _ _) = error "Wrong amount of arguments passed to 'depth'."
-evalAExpr (QOp op qc _) = do
+evalAExpr (Ext (Wid qc)) = do
   sqc <- evalQExpr qc
-  case op of
-    Wid -> return (sQb sqc + sCb sqc)
-    GC -> return (L.length (sGates sqc))
+  return (sQb sqc + sCb sqc)
+evalAExpr (Ext (GC qc)) = do
+  sqc <- evalQExpr qc
+  return (L.length (sGates sqc))
 
 -- | Calculates the depth of a given qbit of a circuit.
 calcDepth :: SList Gate -> SInteger -> SInteger
@@ -259,12 +257,12 @@ calcDepth gates qb = finalDepth
 
 {-| Evaluates and proves the given Logic Boolean Expressions.
 -}
-verifyVC :: BExpr -> IO ThmResult
+verifyVC :: Assertion -> IO ThmResult
 verifyVC be = do
   putStrLn $ "VC: " ++ show be
   prove $ evalVC be
 
-evalVC :: BExpr -> Symbolic SBool
+evalVC :: Assertion -> Symbolic SBool
 evalVC be = do
-  (res, _finalEnv) <- runStateT (evalBExpr be) M.empty
+  (res, _finalEnv) <- runStateT (evalAssertion be) M.empty
   return res

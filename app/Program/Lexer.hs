@@ -9,8 +9,8 @@ Also includes helpers for brackets and the definition of the `Parser` type that 
 
 module Program.Lexer where
 
+import Program.QuantumGates
 import Program.Syntax
-import Expression.Syntax
 
 import Data.Void (Void)
 import Text.Megaparsec
@@ -44,6 +44,9 @@ integer :: Parser Integer
 integer = lexeme L.decimal
 
 -- | Variable name parser
+rwords :: [String]
+rwords = ["if", "then", "else", "while", "true", "false", "QuantumCircuit", "measure", "compose", "addQbits", "addBits"]
+
 identifier :: Parser Vname
 identifier = (lexeme . try) (par >>= check)
   where
@@ -53,14 +56,14 @@ identifier = (lexeme . try) (par >>= check)
                 else return x
 
 -- | Gate Name parser
-monGate :: Parser QF1name
-monGate = choice
+pQG1name :: Parser QG1name
+pQG1name = choice
     [ H <$ symbol "H"
     , X <$ symbol "X"
     ]
 
-binGate :: Parser QF2name
-binGate = choice
+pQG2name :: Parser QG2name
+pQG2name = choice
     [ CR <$ symbol "CR"
     , CNOT <$ symbol "CNOT"
     , SWAP <$ symbol "SWAP"

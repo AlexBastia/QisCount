@@ -13,13 +13,15 @@ import Expression.Syntax
 import Solver.Solver (verifyVC)
 
 import qualified Data.SBV as S
+import AssertLogic.Syntax (Assertion, ExtendedAExpr, ExtendedQExpr (UnitOp), QOpExt (..))
+import Program.QuantumGates (QuantumGate(..))
 
 isProved :: S.ThmResult -> Bool
 isProved (S.ThmResult (S.Unsatisfiable _ _)) = True
 isProved _ = False
 
 -- | Generates the final Verification Condition of a given Hoare triple
-genVC :: HoareTriple -> IO BExpr
+genVC :: HoareTriple -> IO Assertion
 genVC (HoareTriple p c q) = do
     wpResult <- wp c q
     return $ Imp p wpResult
@@ -28,12 +30,16 @@ genVC (HoareTriple p c q) = do
 -- * VC generators --
 ---------------------
 
+data ExtExpr =
+    BE Assertion| AE ExtendedAExpr | QE ExtendedQExpr
+    deriving (Show)
+
+
 {-| Calculates the Weakest Precondition given a post-condition and a command.
     Operates in the IO monad to support on-the-fly SMT verification. -}
-wp :: Command -> BExpr -> IO BExpr
+wp :: Command -> Assertion -> IO (BooleanFormula a)
 wp (Assign ide e) q                  = return $ subBool q ide e
-wp (UnitOp ide (MonGate g e)) q      = return $ subBool q ide (QE $ QF1 g (QIde ide) e)
-wp (UnitOp ide (BinGate g e1 e2)) q  = return $ subBool q ide (QE $ QF2 g (QIde ide) e1 e2)
+wp (Program.Syntax.UnitOp ide g) q      = return $ subBool q ide (QE $ Program.Syntax.UnitOp ide g)
 wp (Measure ide e1 e2) q             = return $ subBool q ide (QE $ QF2 MES (QIde ide) e1 e2)
 wp (Program.Syntax.Compose ide qc) q = return $ subBool q ide (QE qc)
 wp (AddQ ide e) q                    = return $ subBool q ide (QE $ QF1 ADQ (QIde ide) e)
@@ -75,7 +81,7 @@ wp (Seq []) q = return q
 ---------------------
 
 -- | Performs boolean variable name substitutions
-subBool :: BExpr -> Vname -> Expr -> BExpr
+subBool :: Assertion -> Vname -> ExtExpr -> BooleanFormula a
 subBool (BIde be) ide (BE val)
     | be == ide = val
     | otherwise = BIde be
@@ -88,30 +94,33 @@ subBool (Not be) ide val = Not (subBool be ide val)
 subBool e _ _ = e
 
 -- | Performs integer variable name substitutions
-subArithm :: AExpr -> Vname -> Expr -> AExpr
+subArithm :: ExtendedAExpr -> Vname -> ExtExpr -> ExtendedAExpr
 subArithm (AIde ae) ide (AE val)
     | ae == ide = val
     | otherwise = AIde ae
 subArithm e _ (BE _) = e
 subArithm (BinOp op ae1 ae2) ide val = BinOp op (subArithm ae1 ide val) (subArithm ae2 ide val)
 subArithm (MonOp op ae) ide val = MonOp op (subArithm ae ide val)
-subArithm (QOp op qe aes) ide val = QOp op (subQCirc qe ide val) (subAL aes ide val)
+subArithm (Ext (Wid qe)) ide val = Ext (Wid (subQCirc qe ide val))
+subArithm (Ext (GC qe)) ide val = Ext (GC (subQCirc qe ide val))
+subArithm (Ext (Dep qe ae)) ide val = Ext (Dep (subQCirc qe ide val) (subArithm ae ide val))
 subArithm e _ _ = e
 
 -- | Performs quantum cirucit variable name substitutions
-subQCirc :: QExpr -> Vname -> Expr -> QExpr
+subQCirc :: ExtendedQExpr -> Vname -> ExtExpr -> ExtendedQExpr
 subQCirc (QIde qe) ide (QE val)
     | qe == ide = val
     | otherwise = QIde qe
 subQCirc e _ (BE _) = e
 subQCirc (QC ae1 ae2) ide val = QC (subArithm ae1 ide val) (subArithm ae2 ide val)
-subQCirc (Expression.Syntax.Compose qe1 qe2) ide val = Expression.Syntax.Compose (subQCirc qe1 ide val) (subQCirc qe2 ide val)
-subQCirc (QF1 op qe ae) ide val = QF1 op (subQCirc qe ide val) (subArithm ae ide val)
-subQCirc (QF2 op qe ae1 ae2) ide val = QF2 op (subQCirc qe ide val) (subArithm ae1 ide val) (subArithm ae2 ide val)
+subQCirc (Compose qe1 qe2) ide val = Compose (subQCirc qe1 ide val) (subQCirc qe2 ide val)
+subQCirc (AddQ qe ae) ide val = AddQ (subQCirc qe ide val) (subArithm ae ide val)
+subQCirc (AddB qe ae) ide val = AddB (subQCirc qe ide val) (subArithm ae ide val)
+subQCirc (AssertLogic.Syntax.UnitOp qe (QG1 n ae)) ide val = AssertLogic.Syntax.UnitOp (subQCirc qe ide val) (QG1 n (subArithm ae ide val))
 subQCirc e _ _ = e
 
 {-| Substitutes same variable name for same value in list of
     arithmetic expressions -}
-subAL :: [AExpr] -> String -> Expr -> [AExpr]
+subAL :: [ExtendedAExpr] -> String -> ExtExpr -> [ExtendedAExpr]
 subAL [] _ _ = []
 subAL (ae:aes) ide val = subArithm ae ide val : subAL aes ide val

@@ -61,7 +61,7 @@ executable Qiscount
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Program.Syntax Program.Parser Program.Lexer Expression.Syntax Expression.Parser Solver.GenVC Solver.Solver
+    other-modules: Program.Syntax Program.Parser Program.QuantumGates Program.Lexer Expression.Syntax Expression.Parser Solver.GenVC Solver.Solver AssertLogic.Syntax AssertLogic.Parser
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

@@ -29,7 +29,7 @@ pBTerm = choice
     , parens pBExpr
     ]
 
-pBIde :: Parser BExpr
+pBIde :: Parser (BooleanFormula a)
 pBIde = do
     ide <- identifier
     mt <- S.gets (M.lookup ide)
@@ -56,7 +56,7 @@ pCOpName = choice
     , Lt <$ symbol "<"
     ]
 
-bOpTable :: [[Operator Parser BExpr]]
+bOpTable :: [[Operator Parser (BooleanFormula a)]]
 bOpTable =
     [ [ Prefix (Not <$ symbol "!") ]
     , [ InfixL (And  <$ symbol "&&") ]
@@ -72,10 +72,9 @@ pATerm = choice
     [ pAIde
     , NumLit <$> integer
     , parens pAExpr
-    , QOp <$> pQOpName <*> (symbol "(" *> pQExpr) <*> many (symbol "," *> pAExpr) <* symbol ")"
     ]
 
-pAIde :: Parser AExpr
+pAIde :: Parser (ArithmeticFormula a)
 pAIde = do
     ide <- identifier
     mt <- S.gets (M.lookup ide)
@@ -86,13 +85,7 @@ pAIde = do
             S.modify (M.insert ide P.TyInt)
             return $ AIde ide
 
-pQOpName :: Parser QOpName
-pQOpName = choice
-    [ Wid <$ symbol "width"
-    , GC <$ symbol "gatecount"
-    , Dep <$ symbol "depth"]
-
-aOpTable :: [[Operator Parser AExpr]]
+aOpTable :: [[Operator Parser (ArithmeticFormula a)]]
 aOpTable =
     [ [ Prefix (MonOp Neg <$ symbol "-")
       , Prefix (MonOp Pos <$ symbol "+")
@@ -105,15 +98,11 @@ aOpTable =
       , InfixL (BinOp Sub <$ symbol "-")
       ] ]
 
--- Quantum Circuit Parser
+-- Quantum Expression Parser
 pQExpr :: Parser QExpr
 pQExpr = choice
     [ pQIde
-    , symbol "QuantumCircuit" *> parens (QC <$> pAExpr <*> (symbol "," *> pAExpr))
-    , symbol "compose" *> parens (Compose <$> pQExpr <*> (symbol "," *> pQExpr))
-    , QF1 <$> pQF1Name <*> (symbol "(" *> pQExpr) <*> pAExpr <* symbol ")"
-    , QF2 <$> pQF2Name <*> (symbol "(" *> pQExpr) <*> (symbol "," *> pAExpr) <*> (symbol "," *> pAExpr <* symbol ")")
-    ]
+    , symbol "QuantumCircuit" *> parens (QC <$> pAExpr <*> (symbol "," *> pAExpr))]
 
 pQIde :: Parser QExpr
 pQIde = do
@@ -125,24 +114,3 @@ pQIde = do
         Nothing -> do
             S.modify (M.insert ide P.TyQC)
             return $ QIde ide
-
-pQF1Name :: Parser QF1name
-pQF1Name = choice
-    [ symbol "append" *> lookAhead pGname1
-    , ADQ <$ symbol "addQbits"
-    , ADB <$ symbol "addBits"
-    ]
-
-pGname1 :: Parser QF1name
-pGname1 = choice
-    [ H <$ symbol "H"
-    , X <$ symbol "X"
-    ]
-
-pQF2Name :: Parser QF2name
-pQF2Name = choice
-    [ CR <$ symbol "CR"
-    , CNOT <$ symbol "CNOT"
-    , SWAP <$ symbol "SWAP"
-    , MES <$ symbol "measure"
-    ]

@@ -16,6 +16,9 @@ import Data.Void (Void)
 import Text.Megaparsec
 import qualified Data.Map as M
 import qualified Control.Monad.State as S
+import Program.QuantumGates (QuantumGate (QG1, QG2))
+import Expression.Syntax (AExpr, Expr (QE, BE, AE))
+import AssertLogic.Parser (pAssertion)
 
 -- Command Parser
 
@@ -63,10 +66,10 @@ pMethod l = choice
     , symbol "addBits" *> parens (AddB l <$> pAExpr)
     ]
 
-pGate :: Parser Gate
+pGate :: Parser (QuantumGate AExpr)
 pGate = choice
-    [ MonGate <$> monGate <*> parens pAExpr
-    , BinGate <$> binGate <*> (symbol "(" *> pAExpr) <*> (symbol "," *> pAExpr <* symbol ")")
+    [ QG1 <$> pQG1name <*> parens pAExpr
+    , QG2 <$> pQG2name <*> (symbol "(" *> pAExpr) <*> (symbol "," *> pAExpr <* symbol ")")
     ]
 
 pIf :: Parser Command
@@ -94,11 +97,11 @@ pWhile = do
 pProgram :: Parser HoareTriple
 pProgram = do
     _ <- symbol "["
-    pre <- pBExpr
+    pre <- pAssertion
     _ <- symbol "]"
     com <- pBlock
     _ <- symbol "["
-    post <- pBExpr
+    post <- pAssertion
     _ <- symbol "]"
     return $ HoareTriple pre com post
 

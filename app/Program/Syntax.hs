@@ -8,48 +8,32 @@ describes the format of a complete Hoare triple.
 
 module Program.Syntax where
 
-import Expression.Syntax (AExpr, BExpr, QExpr, QF1name, QF2name)
+import Expression.Syntax (Expr, AExpr, BExpr, QExpr)
+import Program.QuantumGates
+import AssertLogic.Syntax (Assertion)
 
--- Boolean and Integer Expressions
-type Vname = String
 data Type = 
   TyBool | TyInt | TyQC
   deriving (Show, Eq)
 
-data Expr =
-    BE BExpr | AE AExpr | QE QExpr
-    deriving (Show)
-
-rwords :: [String]
-rwords = ["if", "then", "else", "while", "True", "False", "QuantumCircuit"]
+data HoareTriple = HoareTriple
+    { htP :: Assertion
+    , htC :: Command
+    , htQ :: Assertion
+    }
+    deriving(Show)
 
 -- Commands
+type Vname = String
+
 data Command
     = Assign Vname Expr
     | Seq [Command]
     | If BExpr Command (Maybe Command)
     | While BExpr BExpr Command
-    | UnitOp Vname Gate
+    | UnitOp Vname (QuantumGate AExpr)
     | Measure Vname AExpr AExpr
     | Compose Vname QExpr
     | AddQ Vname AExpr
     | AddB Vname AExpr
     deriving (Show)
-
-data Gate
-    = MonGate QF1name AExpr
-    | BinGate QF2name AExpr AExpr
-    deriving (Show)
-
-
-data AssertionFunctionRetVal
-    = AFQb Integer
-    | AFState Integer
-    deriving (Show, Eq)
-
-data HoareTriple = HoareTriple
-    { htP :: BExpr
-    , htC :: Command
-    , htQ :: BExpr
-    }
-    deriving(Show)
