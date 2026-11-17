@@ -256,14 +256,19 @@ evalAExpr (QOp op qc _) = do
 calcDepth :: SList Gate -> SInteger -> SInteger
 calcDepth = smtFunction "calcDepth" $ \gates qb ->
   ite (L.null gates) 0 $
-    let g          = L.last gates
-        prefix     = L.init gates
+    let g          = L.head gates
+        prefix     = L.tail gates
         (op,q1,q2) = T.untuple g
-        two        = op .== sSWAP .|| op .== sCR .|| op .== sCNOT
-        d1         = calcDepth prefix q1
-        d2         = calcDepth prefix q2
-        new        = ite two (smax d1 d2) d1 + 1
-    in ite (qb .== q1 .|| (two .&& qb .== q2)) new (calcDepth prefix qb)
+
+        two      = op .== sSWAP .|| op .== sCR .|| op .== sCNOT
+        affected = qb .== q1 .|| (two .&& qb .== q2)
+
+        a  = ite affected q1 qb
+        b  = ite (affected .&& two) q2 a
+
+        da = calcDepth prefix a
+        db = calcDepth prefix b
+    in ite affected (smax da db + 1) da
 
 
 -------------------
