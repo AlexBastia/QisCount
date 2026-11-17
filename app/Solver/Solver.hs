@@ -223,34 +223,47 @@ evalAExpr (QOp op qc _) = do
     GC -> return (L.length (sGates sqc))
 
 -- | Calculates the depth of a given qbit of a circuit.
+-- calcDepth :: SList Gate -> SInteger -> SInteger
+-- calcDepth gates qb = finalDepth
+--   where
+--       initialDepths :: SArray Integer Integer
+--       initialDepths = constArray 0
+
+--       updateDepths :: SArray Integer Integer -> SBV Gate -> SArray Integer Integer
+--       updateDepths currentAcc sgate =
+--           let
+--               (op, q1, q2) = T.untuple sgate
+
+--               d1 = readArray currentAcc q1
+--               d2 = readArray currentAcc q2
+
+--               isTwoQubit = op .== sSWAP  .|| op .== sCR .|| op .== sCNOT
+
+--               maxInputDepth = ite isTwoQubit (smax d1 d2) d1
+--               newGateDepth  = maxInputDepth + 1
+
+--               acc1 = writeArray currentAcc q1 newGateDepth
+--               acc2 = writeArray acc1 q2 newGateDepth
+--           in
+--               ite isTwoQubit acc2 acc1
+
+--       finalDepthsArray :: SArray Integer Integer
+--       finalDepthsArray = L.foldl updateDepths initialDepths gates
+
+--       finalDepth = readArray finalDepthsArray qb
+
+
 calcDepth :: SList Gate -> SInteger -> SInteger
-calcDepth gates qb = finalDepth
-  where
-      initialDepths :: SArray Integer Integer
-      initialDepths = constArray 0
-
-      updateDepths :: SArray Integer Integer -> SBV Gate -> SArray Integer Integer
-      updateDepths currentAcc sgate =
-          let
-              (op, q1, q2) = T.untuple sgate
-
-              d1 = readArray currentAcc q1
-              d2 = readArray currentAcc q2
-
-              isTwoQubit = op .== sSWAP  .|| op .== sCR .|| op .== sCNOT
-
-              maxInputDepth = ite isTwoQubit (smax d1 d2) d1
-              newGateDepth  = maxInputDepth + 1
-
-              acc1 = writeArray currentAcc q1 newGateDepth
-              acc2 = writeArray acc1 q2 newGateDepth
-          in
-              ite isTwoQubit acc2 acc1
-
-      finalDepthsArray :: SArray Integer Integer
-      finalDepthsArray = L.foldl updateDepths initialDepths gates
-
-      finalDepth = readArray finalDepthsArray qb
+calcDepth = smtFunction "calcDepth" $ \gates qb ->
+  ite (L.null gates) 0 $
+    let g          = L.last gates
+        prefix     = L.init gates
+        (op,q1,q2) = T.untuple g
+        two        = op .== sSWAP .|| op .== sCR .|| op .== sCNOT
+        d1         = calcDepth prefix q1
+        d2         = calcDepth prefix q2
+        new        = ite two (smax d1 d2) d1 + 1
+    in ite (qb .== q1 .|| (two .&& qb .== q2)) new (calcDepth prefix qb)
 
 
 -------------------
